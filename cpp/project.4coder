@@ -1,0 +1,42 @@
+version(1);
+
+project_name = "perfaware";
+
+patterns = {
+ "*.c",
+ "*.cpp",
+ "*.h",
+ "*.m",
+ "*.bat",
+ "*.sh",
+ "*.4coder",
+};
+
+blacklist_patterns = {
+ ".*",
+};
+
+load_paths_base = {
+ { ".", .relative = true, .recursive = true, },
+};
+
+load_paths = {
+ { load_paths_base, .os = "win", },
+ { load_paths_base, .os = "linux", },
+ { load_paths_base, .os = "mac", },
+};
+
+command_list = {
+ { .name = "build_debug",
+   .out = "*compilation*", .footer_panel = true, .save_dirty_files = true,
+   .cmd = { { ".\\win32_debug_build.bat", .os = "win" }, }, 
+ },
+ { .name = "run",
+   .out = "*run*", .footer_panel = false, .save_dirty_files = false,
+   .cmd = { {  ".\\build\\win32_main.exe", .os = "win" }, },
+ },
+};
+
+fkey_command[3] = "build_debug";
+fkey_command[4] = "run";
+
