@@ -15,7 +15,5 @@ fun main(args: Array<String>) {
     }
 
     val assemblyCode = disassemble8086(inputFile)
-
-    val outputFilePath = "${inputFile.absolutePath}.asm"
-    File(outputFilePath).writeText(assemblyCode)
+    println(assemblyCode)
 }

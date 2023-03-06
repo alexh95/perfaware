@@ -30,10 +30,12 @@ tasks.withType<Jar> {
 }
 
 tasks.named<Test>("test") {
-    dependsOn("buildAsmTestFiles")
+    dependsOn("downloadNasm")
+    dependsOn("copyTestFiles")
     useJUnitPlatform()
 }
 
+// TODO(alex): make this cross platform
 //val nasmUrl: String = if (org.gradle.internal.os.OperatingSystem.current().isWindows) {
 //    "https://www.nasm.us/pub/nasm/releasebuilds/2.16.01/win64/nasm-2.16.01-win64.zip"
 //} else {
@@ -41,39 +43,37 @@ tasks.named<Test>("test") {
 //}
 val nasmUrl = "https://www.nasm.us/pub/nasm/releasebuilds/2.16.01/win64/nasm-2.16.01-win64.zip"
 val nasmFileName = nasmUrl.substring(nasmUrl.lastIndexOf("/") + 1, nasmUrl.length)
+val nasmFolderName = nasmFileName.substring(0, nasmFileName.lastIndexOf("-"))
 
-// TODO(alex): make this cache so it does not download it every build
 tasks.register<DefaultTask>("downloadNasm") {
     group = "verification"
 
-    doLast {
-        val destFile = layout.buildDirectory.file("tmp/nasm/$nasmFileName").get().asFile
-        destFile.ensureParentDirsCreated()
-        ant.invokeMethod("get", mapOf("src" to nasmUrl, "dest" to destFile))
-        copy {
-            from(zipTree(destFile))
-            into(layout.buildDirectory.dir("resources"))
-        }
-    }
-}
-
-tasks.register<DefaultTask>("buildAsmTestFiles") {
-    group = "verification"
-    dependsOn("downloadNasm")
-    // NOTE(alex): this is needed because the resources/test folder gets deleted by GitHub actions
     mustRunAfter("processTestResources")
 
     doLast {
-        val nasmPath = layout.buildDirectory.file("resources/nasm-2.16.01/nasm.exe").get().asFile.path
-        val outDirPath = layout.buildDirectory.dir("resources/test/assembly").get().asFile.path
-
-        layout.projectDirectory.dir("src/test/resources/assembly").asFileTree.files.forEach {
-            val outputName = it.name.substring(0, it.name.indexOf('.'))
-            val outputPath = outDirPath + File.separator + outputName
-            File(outputPath).ensureParentDirsCreated()
-            exec {
-                commandLine(nasmPath, it.path, "-o $outputPath")
-            }
+        val destFile = layout.buildDirectory.file("tmp/nasm/$nasmFileName").get().asFile
+        if (!destFile.exists()) {
+            destFile.ensureParentDirsCreated()
+            println("Downloading $nasmFileName")
+            ant.invokeMethod("get", mapOf("src" to nasmUrl, "dest" to destFile))
+        }
+        copy {
+            from(zipTree(destFile))
+            into(layout.buildDirectory)
+        }
+        copy {
+            from(layout.buildDirectory.file("$nasmFolderName/nasm.exe"))
+            into(layout.buildDirectory.dir("resources/test/assembly"))
         }
     }
 }
+
+tasks.register<Copy>("copyTestFiles") {
+    group = "verification"
+
+    mustRunAfter("processTestResources")
+
+    from("../../common/resources/part1")
+    into(layout.buildDirectory.dir("resources/test/assembly"))
+}
+
