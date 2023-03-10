@@ -44,56 +44,6 @@ inline u32 StringLength(char* String)
     return Size;
 }
 
-u32 StringCopy(char* Dst, u32 DstOffset, char* Src, u32 SrcOffset, u32 SrcCount)
-{
-    for (u32 Index = 0; Index < SrcCount; ++Index)
-    {
-        Dst[DstOffset + Index] = Src[SrcOffset + Index];
-    }
-    return DstOffset + SrcCount;
-}
-
-u32 StringCopy(string Dst, u32 DstOffset, char* Src, u32 SrcOffset, u32 SrcCount)
-{
-    return StringCopy((char*)Dst.Data, DstOffset, Src, SrcOffset, SrcCount);
-}
-
-b32 StringCompare(u8* A, u32 SizeA, u8* B, u32 SizeB)
-{
-    if (SizeA != SizeB)
-    {
-        return false;
-    }
-    
-    for (u32 Index = 0; Index < SizeA; ++Index)
-    {
-        if (A[Index] != B[Index])
-        {
-            return false;
-        }
-    }
-    
-    return true;
-}
-
-inline b32 StringCompare(string A, string B)
-{
-    b32 Result = StringCompare(A.Data, A.Size, B.Data, B.Size);
-    return Result;
-}
-
-inline void StringLowerCase(string String)
-{
-    for (u32 Index = 0; Index < String.Size; ++Index)
-    {
-        u8 Character = String.Data[Index];
-        if ('A' <= Character && Character <= 'Z')
-        {
-            String.Data[Index] += 32;
-        }
-    }
-}
-
 #define Kilobytes(Size) ((Size) * 1024LL)
 #define Megabytes(Size) (Kilobytes(Size) * 1024LL)
 #define Gigabytes(Size) (Gigabytes(Size) * 1024LL)
