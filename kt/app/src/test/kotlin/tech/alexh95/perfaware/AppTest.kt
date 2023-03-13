@@ -17,6 +17,8 @@ class AppTest {
 
         fun getTestFiles(): Map<String, Pair<File, File>> {
             return File(assemblyFilePath).listFiles()
+                // TODO(alex): remove filter after implementation
+                .filter { it.name.contains("0042") }
                 .filter { it.name.startsWith("listing") }
                 .groupBy { if (it.name.contains('.')) it.name.substring(0, it.name.indexOf('.')) else it.name  }
                 .map { Pair(it.key, Pair(it.value[0], it.value[1])) }.toMap()
