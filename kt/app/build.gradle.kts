@@ -11,7 +11,7 @@ repositories {
 
 dependencies {
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
-    testImplementation("org.junit.jupiter:junit-jupiter-engine:5.9.1")
+    testImplementation("org.junit.jupiter:junit-jupiter-engine:5.9.2")
 }
 
 application {
@@ -73,7 +73,7 @@ tasks.register<Copy>("copyTestFiles") {
 
     mustRunAfter("processTestResources")
 
-    from("../../common/resources/part1")
+    from("../../computer_enhance/perfaware/part1")
     into(layout.buildDirectory.dir("resources/test/assembly"))
 }
 

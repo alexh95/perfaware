@@ -16,7 +16,7 @@ class AppTest {
         val assemblyFilePath: String = Thread.currentThread().contextClassLoader.getResource("assembly")!!.file
 
         fun getTestFiles(): Map<String, Pair<File, File>> {
-            return File(assemblyFilePath).listFiles()
+            return File(assemblyFilePath).listFiles()!!
                 // TODO(alex): remove filter after implementation
                 .filter { it.name.contains("0042") }
                 .filter { it.name.startsWith("listing") }
@@ -37,7 +37,7 @@ class AppTest {
     private fun checkDisassembledMatchesSource(assembledFile: File, sourceFile: File) {
         println("Testing file: ${assembledFile.name}")
         println("debug print dir: $assemblyFilePath")
-        File(assemblyFilePath).listFiles().forEach { println(it.name) }
+        File(assemblyFilePath).listFiles()!!.forEach { println(it.name) }
         val disassembledCode = disassemble8086(assembledFile)
         val disassembledFileName = "disassembled_${sourceFile.name}"
         File("$assemblyFilePath/$disassembledFileName").writeText(disassembledCode)

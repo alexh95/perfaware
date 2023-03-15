@@ -26,118 +26,6 @@ fun InstructionList.push(bytes: Bytes, instruction: String) {
     this += Pair(bytes.instructionStartAddress(), instruction)
 }
 
-fun disassemble8086(file: File): String = disassemble8086(file.readBytes())
-
-fun disassemble8086(byteArray: ByteArray): String {
-    val result: InstructionList = arrayListOf()
-    result += Pair(null, "bits 16")
-
-    val bytes = Bytes(byteArray, 0)
-    while (bytes.hasNextByte()) {
-        bytes.advanceStartAddress()
-        val byte0 = bytes.nextByte()
-        when (val opcode = Opcode.decodeOperation(byte0, bytes)) {
-            // DATA TRANSFER
-            MOV_RM_R -> decodeMovRMToR(result, byte0, bytes)
-            MOV_IM_RM -> decodeIMToRM(result, byte0, bytes)
-            MOV_IM_R -> {
-                val wordFlag = decodeWordFlagImmediateToRegister(byte0)
-                val registerField = Register.decodeRMFieldToRegister(byte0, wordFlag)
-                val immediate = bytes.nextData(wordFlag)
-                result.push(bytes, "mov $registerField, $immediate")
-            }
-            MOV_M_A -> result.push(bytes, "mov ax, [${bytes.nextWord()}]")
-            MOV_A_M -> result.push(bytes, "mov [${bytes.nextWord()}], ax")
-            PUSH_RM -> decodeStackRM(result, bytes, "push")
-            PUSH_R -> decodeStackR(result, byte0, bytes, "push")
-            PUSH_SR -> decodeStackSR(result, byte0, bytes, "push")
-            POP_RM -> decodeStackRM(result, bytes, "pop")
-            POP_R -> decodeStackR(result, byte0, bytes, "pop")
-            POP_SR -> decodeStackSR(result, byte0, bytes, "pop")
-            XCHG_RM_R -> decodeXchgRMToR(result, byte0, bytes)
-            XCHG_R_A -> decodeXcghRToA(result, byte0, bytes)
-            IN_F -> decodeIO(result, byte0, bytes, direction = true, variable = false)
-            IN_V -> decodeIO(result, byte0, bytes, direction = true, variable = true)
-            OUT_F -> decodeIO(result, byte0, bytes, direction = false, variable = false)
-            OUT_V -> decodeIO(result, byte0, bytes, direction = false, variable = true)
-            LEA, LDS, LES -> decodeLoad(result, bytes, opcode.toString())
-            XLAT, LAHF, SAHF, PUSHF, POPF -> result.push(bytes, "$opcode")
-            // ARITHMETIC
-            OP_RM_R -> decodeArithmeticRMToR(result, byte0, bytes)
-            OP_IM_RM -> decodeOpIMToRM(result, byte0, bytes)
-            OP_IM_A -> decodeIMToA(result, byte0, bytes)
-            INC_DEC_RM -> decodeIncDec(result, byte0, bytes)
-            INC_R -> decodeIncDecR(result, byte0, bytes, "inc")
-            DEC_R -> decodeIncDecR(result, byte0, bytes, "dec")
-            OP_MUL_RM -> decodeOpMul(result, byte0, bytes)
-            AAM, AAD -> {
-                val byte1 = bytes.nextByte()
-                result.push(bytes, "$opcode")
-            }
-            AAA, DAA, AAS, DAS, CBW, CWD -> result.push(bytes, "$opcode")
-            // LOGIC
-            OP_SHIFT_RM -> decodeOpShift(result, byte0, bytes)
-            // CONTROL TRANSFER
-            JE, JL, JLE, JB, JBE, JP, JO, JS, JNE, JNL, JNLE, JNB, JNBE, JNP, JNO, JNS, LOOP, LOOPZ, LOOPNZ, JCXZ -> {
-                val jumpLocation = decodeDataSigned(bytes, false)
-                result.push(bytes, "$opcode label ; $jumpLocation")
-            }
-        }
-    }
-
-    createLabels(result)
-
-    return result.joinToString("\n") { it.line() }
-}
-
-private fun decodeOpShift(result: InstructionList, byte0: Int, bytes: Bytes) {
-    val useCReg = (byte0 and 0b00000010) shr 1 == 1
-    val wordFlag = decodeWordFlag(byte0)
-    val byte1 = bytes.nextByte()
-    val op = when ((byte1 and 0b00111000) shr 3) {
-        0 -> "rol"
-        1 -> "ror"
-        2 -> "rcl"
-        3 -> "rcr"
-        4 -> "shl"
-        5 -> "shr"
-        7 -> "sar"
-        else -> throw RuntimeException("Invalid shift op code")
-    }
-    val rm = decodeRMExpression(byte1, bytes, wordFlag)
-    val src = if (useCReg) "cl" else "1"
-    result.push(bytes, "$op $rm, $src")
-}
-
-private fun decodeOpMul(result: InstructionList, byte0: Int, bytes: Bytes) {
-    val wordFlag = decodeWordFlag(byte0)
-    val byte1 = bytes.nextByte()
-    val op = when ((byte1 and 0b00111000) shr 3) {
-        2 -> "not"
-        3 -> "neg"
-        4 -> "mul"
-        5 -> "imul"
-        6 -> "div"
-        7 -> "idiv"
-        else -> throw RuntimeException("Invalid mul opcode")
-    }
-    val rm = decodeRMExpression(byte1, bytes, wordFlag)
-    result.push(bytes, "$op $rm")
-}
-
-private fun decodeIncDec(result: InstructionList, byte0: Int, bytes: Bytes) {
-    val wordFlag = decodeWordFlag(byte0)
-    val byte1 = bytes.nextByte()
-    val op = if ((byte1 and 0b00111000) shr 3 == 0) "inc" else "dec"
-    val rm = decodeRMExpression(byte1, bytes, wordFlag)
-    result.push(bytes, "$op $rm")
-}
-
-private fun decodeIncDecR(result: InstructionList, byte0: Int, bytes: Bytes, op: String) {
-    val reg = Register.decodeRMFieldToRegister(byte0, true)
-    result.push(bytes, "$op $reg")
-}
-
 enum class Opcode(val code: Int, val mask: Int = 0b11111111, val codeByte1: Int = 0, val maskByte1: Int = 0) {
     // DATA TRANSFER
     MOV_RM_R(   0b10001000, 0b11111100),
@@ -165,14 +53,14 @@ enum class Opcode(val code: Int, val mask: Int = 0b11111111, val codeByte1: Int 
     SAHF(       0b10011110),
     PUSHF(      0b10011100),
     POPF(       0b10011101),
-    // ARITHMETIC
+    // ARITHMETIC & LOGIC
     OP_RM_R(    0b00000000, 0b11000100),
     OP_IM_RM(   0b10000000, 0b11111100),
     OP_IM_A(    0b00000100, 0b11000110),
     INC_DEC_RM( 0b11111110, 0b11111110),
     INC_R(      0b01000000, 0b11111000),
     DEC_R(      0b01001000, 0b11111000),
-    OP_MUL_RM(  0b11110110, 0b11111110),
+    OP_GR1_RM(  0b11110110, 0b11111110),
     AAM(        0b11010100),
     AAD(        0b11010101),
     AAA(        0b00110111),
@@ -181,9 +69,12 @@ enum class Opcode(val code: Int, val mask: Int = 0b11111111, val codeByte1: Int 
     DAS(        0b00101111),
     CBW(        0b10011000),
     CWD(        0b10011001),
-    // LOGIC
     OP_SHIFT_RM(0b11010000, 0b11111100),
-//    AND_RM_R(),
+    AND_RM_R(   0b00100000, 0b11111100),
+    AND_A(      0b00100100, 0b11111110),
+    TEST_RM_R(  0b10000100, 0b11111100),
+    TEST_A(     0b10101000, 0b11111110),
+//    OP_LOG_IM_R(0b0),
     // CONTROL TRANSFER
     JE(         0b01110100),
     JL(         0b01111100),
@@ -219,6 +110,146 @@ enum class Opcode(val code: Int, val mask: Int = 0b11111111, val codeByte1: Int 
     }
 
     override fun toString(): String = name.lowercase()
+}
+
+fun disassemble8086(byteArray: ByteArray): String {
+    val result: InstructionList = arrayListOf()
+    result += Pair(null, "bits 16")
+
+    val bytes = Bytes(byteArray, 0)
+    while (bytes.hasNextByte()) {
+        bytes.advanceStartAddress()
+        val byte0 = bytes.nextByte()
+        when (val opcode = Opcode.decodeOperation(byte0, bytes)) {
+            // DATA TRANSFER
+            MOV_RM_R -> decodeInstructionRMToRFull(result, byte0, bytes, "mov")
+            MOV_IM_RM -> decodeIMToRM(result, byte0, bytes)
+            MOV_IM_R -> decodeMovImToR(result, byte0, bytes)
+            MOV_M_A -> result.push(bytes, "mov ax, [${bytes.nextWord()}]")
+            MOV_A_M -> result.push(bytes, "mov [${bytes.nextWord()}], ax")
+            PUSH_RM -> decodeStackRM(result, bytes, "push")
+            PUSH_R -> decodeStackR(result, byte0, bytes, "push")
+            PUSH_SR -> decodeStackSR(result, byte0, bytes, "push")
+            POP_RM -> decodeStackRM(result, bytes, "pop")
+            POP_R -> decodeStackR(result, byte0, bytes, "pop")
+            POP_SR -> decodeStackSR(result, byte0, bytes, "pop")
+            XCHG_RM_R -> decodeXchgRMToR(result, byte0, bytes)
+            XCHG_R_A -> decodeXcghRToA(result, byte0, bytes)
+            IN_F -> decodeIO(result, byte0, bytes, direction = true, variable = false)
+            IN_V -> decodeIO(result, byte0, bytes, direction = true, variable = true)
+            OUT_F -> decodeIO(result, byte0, bytes, direction = false, variable = false)
+            OUT_V -> decodeIO(result, byte0, bytes, direction = false, variable = true)
+            LEA, LDS, LES -> decodeLoad(result, bytes, opcode.toString())
+            XLAT, LAHF, SAHF, PUSHF, POPF -> result.push(bytes, "$opcode")
+            // ARITHMETIC & LOGIC
+            OP_RM_R -> decodeArithmeticLogicRMToR(result, byte0, bytes)
+            OP_IM_RM -> decodeArithmeticLogicIMToRM(result, byte0, bytes)
+            OP_IM_A -> decodeArithmeticLogicIMToA(result, byte0, bytes)
+            INC_DEC_RM -> decodeIncDec(result, byte0, bytes)
+            INC_R -> decodeIncDecR(result, byte0, bytes, "inc")
+            DEC_R -> decodeIncDecR(result, byte0, bytes, "dec")
+            OP_GR1_RM -> decodeOpMul(result, byte0, bytes)
+            AAM, AAD -> decodeAsciiAdjust(result, bytes, opcode)
+            AAA, DAA, AAS, DAS, CBW, CWD -> result.push(bytes, "$opcode")
+            OP_SHIFT_RM -> decodeOpShift(result, byte0, bytes)
+            AND_RM_R -> decodeInstructionRMToRFull(result, byte0, bytes, "and")
+            AND_A -> decodeOpA(result, byte0, bytes, "and")
+            TEST_RM_R -> decodeInstructionRMToRFull(result, byte0, bytes, "test")
+            TEST_A -> decodeOpA(result, byte0, bytes, "test")
+            // CONTROL TRANSFER
+            JE, JL, JLE, JB, JBE, JP, JO, JS, JNE, JNL, JNLE, JNB, JNBE, JNP, JNO, JNS, LOOP, LOOPZ, LOOPNZ, JCXZ -> decodeJump(result, bytes, opcode)
+        }
+    }
+
+    return result.joinToString("\n") { it.line() }
+}
+
+fun disassemble8086(file: File): String = disassemble8086(file.readBytes())
+
+private fun decodeAsciiAdjust(result: InstructionList, bytes: Bytes, opcode: Opcode) {
+    bytes.nextByte()
+    result.push(bytes, "$opcode")
+}
+
+private fun decodeJump(result: InstructionList, bytes: Bytes, opcode: Opcode) {
+    val jumpOffset = decodeDataSigned(bytes, false) + 2
+    val jumpLocation = "\$${if (jumpOffset >= 0) "+" else ""}$jumpOffset"
+    result.push(bytes, "$opcode $jumpLocation")
+}
+
+enum class ShiftOperation {
+    ROL, ROR, RCL, RCR, SHL, SHR, SAR;
+
+    companion object {
+        private fun decodeShiftOperationOpcode(byte: Int) = (byte and 0b00111000) shr 3
+        fun decodeShiftOperation(byte: Int): ShiftOperation {
+            return when (decodeShiftOperationOpcode(byte)) {
+                0 -> ROL
+                1 -> ROR
+                2 -> RCL
+                3 -> RCR
+                4 -> SHL
+                5 -> SHR
+                7 -> SAR
+                else -> throw RuntimeException("Invalid shift op code")
+            }
+        }
+    }
+
+    override fun toString(): String = name.lowercase()
+}
+
+private fun decodeOpShift(result: InstructionList, byte0: Int, bytes: Bytes) {
+    val useCReg = (byte0 and 0b00000010) shr 1 == 1
+    val wordFlag = decodeWordFlag(byte0)
+    val byte1 = bytes.nextByte()
+    val op = ShiftOperation.decodeShiftOperation(byte1).toString()
+    val rm = decodeRMExpression(byte1, bytes, wordFlag)
+    val src = if (useCReg) "cl" else "1"
+    result.push(bytes, "$op $rm, $src")
+}
+
+enum class Group1Operation {
+    TEST, NOT, NEG, MUL, IMUL, DIV, IDIV;
+
+    companion object {
+        private fun decodeGroup1OperationOpcode(byte: Int) = (byte and 0b00111000) shr 3
+        fun decodeGroup1Operation(byte: Int): Group1Operation {
+            return when (decodeGroup1OperationOpcode(byte)) {
+                0 -> TEST
+                2 -> NOT
+                3 -> NEG
+                4 -> MUL
+                5 -> IMUL
+                6 -> DIV
+                7 -> IDIV
+                else -> throw RuntimeException("Invalid mul opcode")
+            }
+        }
+    }
+
+    override fun toString(): String = name.lowercase()
+}
+
+private fun decodeOpMul(result: InstructionList, byte0: Int, bytes: Bytes) {
+    val wordFlag = decodeWordFlag(byte0)
+    val byte1 = bytes.nextByte()
+    val op = Group1Operation.decodeGroup1Operation(byte1)
+    val rm = decodeRMExpression(byte1, bytes, wordFlag)
+    result.push(bytes, "$op $rm")
+}
+
+private fun decodeIncDec(result: InstructionList, byte0: Int, bytes: Bytes) {
+    val wordFlag = decodeWordFlag(byte0)
+    val byte1 = bytes.nextByte()
+    val op = if ((byte1 and 0b00111000) shr 3 == 0) "inc" else "dec"
+    val rm = decodeRMExpression(byte1, bytes, wordFlag)
+    result.push(bytes, "$op $rm")
+}
+
+private fun decodeIncDecR(result: InstructionList, byte0: Int, bytes: Bytes, op: String) {
+    val reg = Register.decodeRMFieldToRegister(byte0, true)
+    result.push(bytes, "$op $reg")
 }
 
 private fun decodeIO(result: InstructionList, byte0: Int, bytes: Bytes, direction: Boolean, variable: Boolean) {
@@ -266,50 +297,20 @@ private enum class SegmentRegister {
     override fun toString(): String = name.lowercase()
 }
 
-// NOTE(alex): sanest kotlin function
-private fun createLabels(result: InstructionList) {
-    val jumpAddresses = result
-        .mapIndexed { index, instruction -> Pair(index, instruction) }
-        .filter { (_, instruction) -> instruction.baseAddress() != null && instruction.line().contains("label") }
-        .map { (index, instruction) ->
-            val jumpOffset = instruction.line().substring(instruction.line().indexOf(';') + 2).toInt()
-            val baseAddress = instruction.baseAddress()!!
-            Triple(index, baseAddress, baseAddress + jumpOffset)
-        }
-    val addressToLabel = jumpAddresses
-        .asSequence()
-        .map { (_, _, jumpAddress) -> jumpAddress }
-        .distinct()
-        .sorted()
-        .mapIndexed { index, jumpAddress -> Pair(jumpAddress, "label_$index") }
-        .sortedByDescending { (jumpAddress, _) -> jumpAddress }
-        .toList()
-    val addressToLabelMap = addressToLabel.toMap()
-    jumpAddresses
-        .forEach { (index, baseAddress, jumpAddress) ->
-            val newLine = result[index].line().replace("label", addressToLabelMap[jumpAddress]!!)
-            result[index] = Pair(baseAddress, newLine)
-        }
-    addressToLabel
-        .forEach { (address, label) ->
-            val index = result.indexOfFirst { (baseAddress, _) -> baseAddress == address }
-            result.add(index + 1, Pair(null, "$label:"))
-        }
-}
-
-private enum class ArithmeticOperation {
-    ADD, DEC, ADC, SBB, SUB, CMP;
+private enum class ArithmeticLogicOperation {
+    ADD, OR, ADC, SBB, AND, SUB, XOR, CMP;
 
     companion object {
-        private fun decodeArithmeticOp(byte: Int) = (byte and 0b00111000) shr 3
-
-        fun decodeOperation(byte: Int): ArithmeticOperation {
-            return when (decodeArithmeticOp(byte)) {
+        private fun decodeArithmeticLogicOp(byte: Int) = (byte and 0b00111000) shr 3
+        fun decodeOperation(byte: Int): ArithmeticLogicOperation {
+            return when (decodeArithmeticLogicOp(byte)) {
                 0 -> ADD
-                1 -> DEC
+                1 -> OR
                 2 -> ADC
                 3 -> SBB
+                4 -> AND
                 5 -> SUB
+                6 -> XOR
                 7 -> CMP
                 else -> throw RuntimeException("Invalid operation code")
             }
@@ -345,18 +346,21 @@ private fun decodeRMToR(bytes: Bytes, wordFlag: Boolean): Pair<String, String> {
     return Pair(register, rm)
 }
 
-private fun decodeMovRMToR(result: InstructionList, byte0: Int, bytes: Bytes) {
-    val directionFlag = decodeDirectionFlag(byte0)
-    val wordFlag = decodeWordFlag(byte0)
-
-    decodeInstructionRMToR(result, bytes, directionFlag, wordFlag, "mov")
+private fun decodeMovImToR(result: InstructionList, byte0: Int, bytes: Bytes) {
+    val wordFlag = decodeWordFlagImmediateToRegister(byte0)
+    val registerField = Register.decodeRMFieldToRegister(byte0, wordFlag)
+    val immediate = bytes.nextData(wordFlag)
+    result.push(bytes, "mov $registerField, $immediate")
 }
 
-private fun decodeArithmeticRMToR(result: InstructionList, byte0: Int, bytes: Bytes) {
-    val op = ArithmeticOperation.decodeOperation(byte0).toString()
+private fun decodeArithmeticLogicRMToR(result: InstructionList, byte0: Int, bytes: Bytes) {
+    val op = ArithmeticLogicOperation.decodeOperation(byte0).toString()
+    decodeInstructionRMToRFull(result, byte0, bytes, op)
+}
+
+private fun decodeInstructionRMToRFull(result: InstructionList, byte0: Int, bytes: Bytes, op: String) {
     val directionFlag = decodeDirectionFlag(byte0)
     val wordFlag = decodeWordFlag(byte0)
-
     decodeInstructionRMToR(result, bytes, directionFlag, wordFlag, op)
 }
 
@@ -392,12 +396,12 @@ private fun decodeRMExpression(byte1: Int, bytes: Bytes, wordFlag: Boolean): Str
     } else Register.decodeRMFieldToRegister(byte1, wordFlag).toString()
 }
 
-private fun decodeOpIMToRM(result: InstructionList, byte0: Int, bytes: Bytes) {
+private fun decodeArithmeticLogicIMToRM(result: InstructionList, byte0: Int, bytes: Bytes) {
     val signExtendFlag = decodeSignExtended(byte0)
     val wordFlag = decodeWordFlag(byte0)
 
     val byte1 = bytes.nextByte()
-    val op = ArithmeticOperation.decodeOperation(byte1)
+    val op = ArithmeticLogicOperation.decodeOperation(byte1).toString()
 
     val rm = decodeRMExpression(byte1, bytes, wordFlag)
     var immediate = bytes.nextData(!signExtendFlag && wordFlag)
@@ -408,12 +412,16 @@ private fun decodeOpIMToRM(result: InstructionList, byte0: Int, bytes: Bytes) {
     result.push(bytes, "$op $rm, $immediate")
 }
 
-private fun decodeIMToA(result: InstructionList, byte0: Int, bytes: Bytes) {
-    val op = ArithmeticOperation.decodeOperation(byte0)
+private fun decodeOpA(result: InstructionList, byte0: Int, bytes: Bytes, op: String) {
     val wordFlag = decodeWordFlag(byte0)
     val register = if (wordFlag) Register.AX else Register.AL
     val immediate = bytes.nextData(wordFlag)
     result.push(bytes, "$op $register, $immediate")
+}
+
+private fun decodeArithmeticLogicIMToA(result: InstructionList, byte0: Int, bytes: Bytes) {
+    val op = ArithmeticLogicOperation.decodeOperation(byte0).toString()
+    decodeOpA(result, byte0, bytes, op)
 }
 
 private fun decodeDataSigned(bytes: Bytes, wide: Boolean): Int {
