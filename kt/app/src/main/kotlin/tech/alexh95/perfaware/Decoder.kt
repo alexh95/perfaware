@@ -27,12 +27,20 @@ fun InstructionList.push(bytes: Bytes, instruction: String) {
 }
 
 enum class Opcode(val code: Int, val mask: Int = 0b11111111, val codeByte1: Int = 0, val maskByte1: Int = 0) {
+    // SEGMENT OVERRIDE PREFIX
+    S_OVERRIDE( 0b00100110, 0b11100111),
+//    ES(         0b00100110),
+//    CS(         0b00101110),
+//    SS(         0b00110110),
+//    DS(         0b00111110),
     // DATA TRANSFER
     MOV_RM_R(   0b10001000, 0b11111100),
     MOV_IM_RM(  0b11000110, 0b11111110, 0b00000000, 0b00111000),
     MOV_IM_R(   0b10110000, 0b11110000),
     MOV_M_A(    0b10100000, 0b11111110),
     MOV_A_M(    0b10100010, 0b11111110),
+//    MOV_RM_SR(  0b10001110),
+//    MOV_SR_RM(  0b10001100),
     PUSH_RM(    0b11111111, 0b11111111, 0b00110000, 0b00111000),
     PUSH_R(     0b01010000, 0b11111000),
     PUSH_SR(    0b00000110, 0b11100111),
@@ -57,7 +65,7 @@ enum class Opcode(val code: Int, val mask: Int = 0b11111111, val codeByte1: Int 
     OP_RM_R(    0b00000000, 0b11000100),
     OP_IM_RM(   0b10000000, 0b11111100),
     OP_IM_A(    0b00000100, 0b11000110),
-    INC_DEC_RM( 0b11111110, 0b11111110),
+    OP_GR2_RM( 0b11111110, 0b11111110),
     INC_R(      0b01000000, 0b11111000),
     DEC_R(      0b01001000, 0b11111000),
     OP_GR1_RM(  0b11110110, 0b11111110),
@@ -74,8 +82,20 @@ enum class Opcode(val code: Int, val mask: Int = 0b11111111, val codeByte1: Int 
     AND_A(      0b00100100, 0b11111110),
     TEST_RM_R(  0b10000100, 0b11111100),
     TEST_A(     0b10101000, 0b11111110),
-//    OP_LOG_IM_R(0b0),
+    // STRING MANIPULATION
+    REP(        0b11110010, 0b11111110),
+    MOVS(       0b10100100, 0b11111110),
+    CMPS(       0b10100110, 0b11111110),
+    SCAS(       0b10101110, 0b11111110),
+    LODS(       0b10101100, 0b11111110),
+    STOS(       0b10101010, 0b11111110),
     // CONTROL TRANSFER
+    RET_S(      0b11000011),
+    RET_SI(     0b11000010),
+    INT_T(      0b11001101),
+    INT_3(      0b11001100),
+    INTO(       0b11001110),
+    IRET(       0b11001111),
     JE(         0b01110100),
     JL(         0b01111100),
     JLE(        0b01111110),
@@ -96,6 +116,17 @@ enum class Opcode(val code: Int, val mask: Int = 0b11111111, val codeByte1: Int 
     LOOPZ(      0b11100001),
     LOOPNZ(     0b11100000),
     JCXZ(       0b11100011),
+    // PROCESSOR CONTROL
+    CLC(        0b11111000),
+    CMC(        0b11110101),
+    STC(        0b11111001),
+    CLD(        0b11111100),
+    STD(        0b11111101),
+    CLI(        0b11111010),
+    STI(        0b11111011),
+    HLT(        0b11110100),
+    WAIT(       0b10011011),
+    LOCK(       0b11110000),
     ;
 
     companion object {
@@ -115,18 +146,30 @@ enum class Opcode(val code: Int, val mask: Int = 0b11111111, val codeByte1: Int 
 fun disassemble8086(byteArray: ByteArray): String {
     val result: InstructionList = arrayListOf()
     result += Pair(null, "bits 16")
-
+    var previousRepZero = false
+    var previousRep = false
+    var previousLock = false
+    var previousSr: SegmentRegister? = null
+    var currentSr: SegmentRegister? = null
     val bytes = Bytes(byteArray, 0)
     while (bytes.hasNextByte()) {
         bytes.advanceStartAddress()
         val byte0 = bytes.nextByte()
-        when (val opcode = Opcode.decodeOperation(byte0, bytes)) {
+        val opcode = Opcode.decodeOperation(byte0, bytes)
+        when (opcode) {
+            S_OVERRIDE -> { currentSr = SegmentRegister.decodeSR(byte0) }
             // DATA TRANSFER
             MOV_RM_R -> decodeInstructionRMToRFull(result, byte0, bytes, "mov")
             MOV_IM_RM -> decodeIMToRM(result, byte0, bytes)
             MOV_IM_R -> decodeMovImToR(result, byte0, bytes)
             MOV_M_A -> result.push(bytes, "mov ax, [${bytes.nextWord()}]")
             MOV_A_M -> result.push(bytes, "mov [${bytes.nextWord()}], ax")
+            /*MOV_RM_SR -> {
+                val byte1 = bytes.nextByte()
+                val mode = Mode.decodeMode(byte1)
+                val sr = SegmentRegister.decodeSR(byte1)
+                val rm = decodeRMExpression(byte1, bytes, true)
+            }*/
             PUSH_RM -> decodeStackRM(result, bytes, "push")
             PUSH_R -> decodeStackR(result, byte0, bytes, "push")
             PUSH_SR -> decodeStackSR(result, byte0, bytes, "push")
@@ -145,10 +188,10 @@ fun disassemble8086(byteArray: ByteArray): String {
             OP_RM_R -> decodeArithmeticLogicRMToR(result, byte0, bytes)
             OP_IM_RM -> decodeArithmeticLogicIMToRM(result, byte0, bytes)
             OP_IM_A -> decodeArithmeticLogicIMToA(result, byte0, bytes)
-            INC_DEC_RM -> decodeIncDec(result, byte0, bytes)
+            OP_GR2_RM -> decodeGr2(result, byte0, bytes)
             INC_R -> decodeIncDecR(result, byte0, bytes, "inc")
             DEC_R -> decodeIncDecR(result, byte0, bytes, "dec")
-            OP_GR1_RM -> decodeOpMul(result, byte0, bytes)
+            OP_GR1_RM -> decodeOpGr1(result, byte0, bytes)
             AAM, AAD -> decodeAsciiAdjust(result, bytes, opcode)
             AAA, DAA, AAS, DAS, CBW, CWD -> result.push(bytes, "$opcode")
             OP_SHIFT_RM -> decodeOpShift(result, byte0, bytes)
@@ -156,12 +199,62 @@ fun disassemble8086(byteArray: ByteArray): String {
             AND_A -> decodeOpA(result, byte0, bytes, "and")
             TEST_RM_R -> decodeInstructionRMToRFull(result, byte0, bytes, "test")
             TEST_A -> decodeOpA(result, byte0, bytes, "test")
+            // STRING MANIPULATION
+            REP -> { previousRepZero = decodeWordFlag(byte0) }
+            MOVS, CMPS, SCAS, LODS, STOS -> decodeStringOp(result, byte0, bytes, opcode)
             // CONTROL TRANSFER
             JE, JL, JLE, JB, JBE, JP, JO, JS, JNE, JNL, JNLE, JNB, JNBE, JNP, JNO, JNS, LOOP, LOOPZ, LOOPNZ, JCXZ -> decodeJump(result, bytes, opcode)
+            RET_S -> result.push(bytes, "ret")
+            RET_SI -> {
+                val immediate = decodeDataSigned(bytes, true)
+                result.push(bytes, "ret $immediate")
+            }
+            INT_T -> {
+                val immediate = bytes.nextByte()
+                result.push(bytes, "int $immediate")
+            }
+            INT_3 -> result.push(bytes, "int 3")
+            INTO, IRET -> result.push(bytes, "$opcode")
+            // PROCESSOR CONTROL
+            CLC, CMC, STC, CLD, STD, CLI, STI, HLT, WAIT -> result.push(bytes, "$opcode")
+            LOCK -> {}
         }
+        // TODO(alex): simplify this
+        if (previousLock && currentSr == null) {
+            previousLock = false
+            val last = result[result.size - 1]
+            result[result.size - 1] = Pair(last.baseAddress()!! - 1, "lock ${last.line()}")
+        }
+        if (previousRep) {
+            previousRep = false
+            val last = result[result.size - 1]
+            val repOp = if (previousRepZero) "rep" else "repne"
+            result[result.size - 1] = Pair(last.baseAddress()!! - 1, "$repOp ${last.line()}")
+        }
+        if (previousSr != null) {
+            val last = result[result.size - 1]
+            result[result.size - 1] = Pair(last.baseAddress()!! - 1, last.line().replace("[", "$previousSr:["))
+            previousSr = null
+        }
+        if (opcode == REP) {
+            previousRep = true
+        }
+        if (opcode == LOCK) {
+            previousLock = true
+        }
+        if (opcode == S_OVERRIDE) {
+            previousSr = currentSr
+        }
+        currentSr = null
     }
 
     return result.joinToString("\n") { it.line() }
+}
+
+fun decodeStringOp(result: InstructionList, byte0: Int, bytes: Bytes, opcode: Opcode) {
+    val wordFlag = decodeWordFlag(byte0)
+    val suffix = if (wordFlag) "w" else "b"
+    result.push(bytes, "$opcode$suffix")
 }
 
 fun disassemble8086(file: File): String = disassemble8086(file.readBytes())
@@ -231,19 +324,47 @@ enum class Group1Operation {
     override fun toString(): String = name.lowercase()
 }
 
-private fun decodeOpMul(result: InstructionList, byte0: Int, bytes: Bytes) {
+private fun decodeOpGr1(result: InstructionList, byte0: Int, bytes: Bytes) {
     val wordFlag = decodeWordFlag(byte0)
     val byte1 = bytes.nextByte()
     val op = Group1Operation.decodeGroup1Operation(byte1)
     val rm = decodeRMExpression(byte1, bytes, wordFlag)
-    result.push(bytes, "$op $rm")
+    if (op == Group1Operation.TEST) {
+        val immediate = bytes.nextByte()
+        result.push(bytes, "$op $rm, $immediate")
+    } else {
+        result.push(bytes, "$op $rm")
+    }
 }
 
-private fun decodeIncDec(result: InstructionList, byte0: Int, bytes: Bytes) {
+enum class Group2Operation {
+    INC, DEC, CALL, CALL_I, JMP, JMP_I, PUSH;
+
+    companion object {
+        private fun decodeGroup2OperationOpcode(byte: Int) = (byte and 0b00111000) shr 3
+        fun decodeGroup2Operation(byte: Int): Group2Operation {
+            return when (Group2Operation.decodeGroup2OperationOpcode(byte)) {
+                0 -> INC
+                1 -> DEC
+                2 -> CALL
+                3 -> CALL_I
+                4 -> JMP
+                5 -> JMP_I
+                6 -> PUSH
+                else -> throw RuntimeException("Invalid mul opcode")
+            }
+        }
+    }
+
+    override fun toString(): String = name.lowercase()
+}
+
+private fun decodeGr2(result: InstructionList, byte0: Int, bytes: Bytes) {
     val wordFlag = decodeWordFlag(byte0)
     val byte1 = bytes.nextByte()
-    val op = if ((byte1 and 0b00111000) shr 3 == 0) "inc" else "dec"
-    val rm = decodeRMExpression(byte1, bytes, wordFlag)
+    val op = Group2Operation.decodeGroup2Operation(byte1)
+    val useType = op != Group2Operation.CALL && op != Group2Operation.JMP
+    val rm = decodeRMExpression(byte1, bytes, wordFlag, useType)
     result.push(bytes, "$op $rm")
 }
 
@@ -386,13 +507,17 @@ private fun decodeIMToRM(result: InstructionList, byte0: Int, bytes: Bytes) {
     result.push(bytes, "mov $rm, $immediateEncoding")
 }
 
-private fun decodeRMExpression(byte1: Int, bytes: Bytes, wordFlag: Boolean): String {
+private fun decodeRMExpression(byte1: Int, bytes: Bytes, wordFlag: Boolean, useType: Boolean = true): String {
     val mode = Mode.decodeMode(byte1)
     return if (mode != Mode.REGISTER_MODE) {
         val offsetEncoding = decodeDataSignExtended(bytes, mode)
         val expression = if (mode == Mode.MEMORY_MODE && decodeRMField(byte1) == 6) "[${bytes.nextWord()}]" else decodeEffectiveAddress(byte1, offsetEncoding)
-        val type = if (wordFlag) "word" else "byte"
-        "$type $expression"
+        if (useType) {
+            val type = if (wordFlag) "word" else "byte"
+            "$type $expression"
+        } else {
+            expression
+        }
     } else Register.decodeRMFieldToRegister(byte1, wordFlag).toString()
 }
 
