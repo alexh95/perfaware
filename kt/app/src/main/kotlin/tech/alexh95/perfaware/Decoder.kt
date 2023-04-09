@@ -3,7 +3,7 @@ package tech.alexh95.perfaware
 import tech.alexh95.perfaware.Opcode.*
 import java.io.File
 
-private class Bytes constructor(private val array: ByteArray, private var index: Int) {
+private class Bytes constructor(private val array: ByteArray, var index: Int) {
     fun hasNextByte(): Boolean = index < array.size
     fun nextByte(): Int = (array[index++].toUByte()).toInt()
     fun nextWord(): Int {
@@ -24,6 +24,8 @@ private enum class Opcode(val code: Int, val mask: Int = 0b11111111, val codeByt
     MOV_IM_R(   0b10110000, 0b11110000),
     MOV_M_A(    0b10100000, 0b11111110),
     MOV_A_M(    0b10100010, 0b11111110),
+    MOV_RM_SR(  0b10001100),
+    MOV_SR_RM(  0b10001110),
     PUSH_RM(    0b11111111, 0b11111111, 0b00110000, 0b00111000),
     PUSH_R(     0b01010000, 0b11111000),
     PUSH_SR(    0b00000110, 0b11100111),
@@ -73,8 +75,14 @@ private enum class Opcode(val code: Int, val mask: Int = 0b11111111, val codeByt
     LODS(       0b10101100, 0b11111110),
     STOS(       0b10101010, 0b11111110),
     // CONTROL TRANSFER
+    CALL_DS(    0b11101000),
+    CALL_DIS(   0b10011010),
+    JMP_DS(     0b11101001),
+    JMP_DIS(    0b11101010),
     RET_S(      0b11000011),
     RET_SI(     0b11000010),
+    RET_I(      0b11001011),
+    RET_ISI(    0b11001010),
     INT_T(      0b11001101),
     INT_3(      0b11001100),
     INTO(       0b11001110),
@@ -141,6 +149,18 @@ private fun disassemble8086(byteArray: ByteArray): String {
             MOV_IM_R -> decodeMovImToR(result, byte0, bytes)
             MOV_M_A -> result.append("mov ax, $sr[${bytes.nextWord()}]\n")
             MOV_A_M -> result.append("mov $sr[${bytes.nextWord()}], ax\n")
+            MOV_RM_SR -> {
+                val byte1 = bytes.nextByte()
+                val lsr = SegmentRegister.decodeSR(byte1)
+                val rm = decodeRMExpression(byte1, bytes, wordFlag = true, useType = false, sr = sr)
+                result.append("mov $rm,$lsr\n")
+            }
+            MOV_SR_RM -> {
+                val byte1 = bytes.nextByte()
+                val lsr = SegmentRegister.decodeSR(byte1)
+                val rm = decodeRMExpression(byte1, bytes, wordFlag = true, useType = false, sr = sr)
+                result.append("mov $lsr,$rm\n")
+            }
             PUSH_RM -> decodeStackRM(result, bytes, "push", sr)
             PUSH_R -> decodeStackR(result, byte0, "push")
             PUSH_SR -> decodeStackSR(result, byte0, "push")
@@ -178,17 +198,40 @@ private fun disassemble8086(byteArray: ByteArray): String {
             }
             MOVS, CMPS, SCAS, LODS, STOS -> decodeStringOp(result, byte0, opcode)
             // CONTROL TRANSFER
+            CALL_DS -> {
+                val ip = bytes.nextWord() + bytes.index
+                result.append("call $ip\n")
+            }
+            CALL_DIS -> {
+                val ip = bytes.nextWord()
+                val seg = bytes.nextWord()
+                result.append("call $seg:$ip\n")
+            }
+            JMP_DS -> {
+                val ip = bytes.nextWord() + bytes.index
+                result.append("jmp $ip\n")
+            }
+            JMP_DIS -> {
+                val ip = bytes.nextWord()
+                val seg = bytes.nextWord()
+                result.append("jmp $seg:$ip\n")
+            }
             JE, JL, JLE, JB, JBE, JP, JO, JS, JNE, JNL, JNLE, JNB, JNBE, JNP, JNO, JNS, LOOP, LOOPZ, LOOPNZ, JCXZ -> decodeJump(result, bytes, opcode)
             RET_S -> result.append("ret\n")
             RET_SI -> {
                 val immediate = decodeDataSigned(bytes, true)
                 result.append("ret $immediate\n")
             }
+            RET_I -> result.append("retf\n")
+            RET_ISI -> {
+                val ip = bytes.nextWord()
+                result.append("retf $ip\n")
+            }
             INT_T -> {
                 val immediate = bytes.nextByte()
                 result.append("int $immediate\n")
             }
-            INT_3 -> result.append("int 3\n")
+            INT_3 -> result.append("int3\n")
             INTO, IRET -> result.append("$opcode\n")
             // PROCESSOR CONTROL
             CLC, CMC, STC, CLD, STD, CLI, STI, HLT, WAIT -> result.append("$opcode\n")
@@ -314,9 +357,14 @@ private fun decodeGr2(result: StringBuilder, byte0: Int, bytes: Bytes, sr: Strin
     val wordFlag = decodeWordFlag(byte0)
     val byte1 = bytes.nextByte()
     val op = Group2Operation.decodeGroup2Operation(byte1)
-    val useType = op != Group2Operation.CALL && op != Group2Operation.JMP
+    val useType = op != Group2Operation.CALL && op != Group2Operation.CALL_I && op != Group2Operation.JMP  && op != Group2Operation.JMP_I
     val rm = decodeRMExpression(byte1, bytes, wordFlag, useType, sr)
-    result.append("$op $rm\n")
+    val operation = when (op) {
+        Group2Operation.CALL_I -> "call far"
+        Group2Operation.JMP_I -> "jmp far"
+        else -> op
+    }
+    result.append("$operation $rm\n")
 }
 
 private fun decodeIncDecR(result: StringBuilder, byte0: Int, op: String) {
@@ -480,9 +528,9 @@ private fun decodeArithmeticLogicIMToRM(result: StringBuilder, byte0: Int, bytes
     val op = ArithmeticLogicOperation.decodeOperation(byte1).toString()
 
     val rm = decodeRMExpression(byte1, bytes, wordFlag, true, sr)
-    var immediate = bytes.nextData(!signExtendFlag && wordFlag)
+    var immediate = bytes.nextData(!signExtendFlag && wordFlag).toShort()
     if (signExtendFlag && wordFlag && immediate > 127) {
-        immediate = 65536 - immediate
+        immediate = (65536 - (256 - immediate)).toShort()
     }
 
     result.append("$op $rm, $immediate\n")

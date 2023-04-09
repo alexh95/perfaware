@@ -14,7 +14,7 @@ class DecoderTest {
 
         fun getTestFiles(): Map<String, Pair<File, File>> {
             return File(assemblyFilePath).listFiles()!!
-                .filter { it.name.startsWith("listing") }
+                .filter { it.name.startsWith("listing") && !it.name.endsWith(".txt") }
                 .groupBy { if (it.name.contains('.')) it.name.substring(0, it.name.indexOf('.')) else it.name  }
                 .map { Pair(it.key, Pair(it.value[0], it.value[1])) }.toMap()
         }
