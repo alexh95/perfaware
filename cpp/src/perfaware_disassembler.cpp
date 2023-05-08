@@ -1,3 +1,5 @@
+#include "perfaware_disassembler.h"
+
 enum opcode
 {
     OP_MOV_RM_R = 0,
@@ -409,4 +411,11 @@ buffer Disassemble8086(buffer MachineCode)
     Arena.Size = Megabytes(16);
     Arena.Base = (u8*)VirtualAlloc(0, Arena.Size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     return Disassemble8086(&Arena, MachineCode);
+}
+
+buffer Disassemble8086_(memory_arena *Arena, buffer MachineCode)
+{
+    
+    
+    return {};
 }

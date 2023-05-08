@@ -1,5 +1,13 @@
 #include "perfaware_types.h"
 
+string StringI(string S, u32 FromIndex, u32 ToIndex)
+{
+    string Result;
+    Result.Size = ToIndex - FromIndex;
+    Result.Data = S.Data + FromIndex;
+    return Result;
+}
+
 u32 StringCopy(char* Dst, u32 DstOffset, char* Src, u32 SrcOffset, u32 SrcCount)
 {
     for (u32 Index = 0; Index < SrcCount; ++Index)
@@ -9,9 +17,19 @@ u32 StringCopy(char* Dst, u32 DstOffset, char* Src, u32 SrcOffset, u32 SrcCount)
     return DstOffset + SrcCount;
 }
 
-u32 StringCopy(string Dst, u32 DstOffset, char* Src, u32 SrcOffset, u32 SrcCount)
+u32 inline StringCopy(string Dst, u32 DstOffset, char* Src, u32 SrcOffset, u32 SrcCount)
 {
     return StringCopy((char*)Dst.Data, DstOffset, Src, SrcOffset, SrcCount);
+}
+
+u32 inline StringCopy(string Dst, u32 DstOffset, char* Src)
+{
+    return StringCopy((char*)Dst.Data, DstOffset, Src, 0, StringLength(Src));
+}
+
+u32 inline StringCopy(string Dst, u32 DstOffset, string Src)
+{
+    return StringCopy((char*)Dst.Data, DstOffset, (char*)Src.Data, 0, Src.Size);
 }
 
 b32 StringCompare(u8* A, u32 SizeA, u8* B, u32 SizeB)
@@ -36,6 +54,69 @@ inline b32 StringCompare(string A, string B)
 {
     b32 Result = StringCompare(A.Data, A.Size, B.Data, B.Size);
     return Result;
+}
+
+struct string_list
+{
+    u32 Count;
+    string* Strings;
+};
+
+inline string_list StringList(memory_arena *Arena, u32 Count)
+{
+    string_list Result;
+    Result.Count = Count;
+    Result.Strings = ArenaPushArray(string, Arena, Count);
+    return Result;
+}
+
+string_list StringSplit(memory_arena *Arena, string S, u8 Delimiter)
+{
+    string_list Result = {};
+    
+    u32 MatchCount = 0;
+    for (u32 Index = 0; Index < S.Size; ++Index)
+    {
+        u8 C = S.Data[Index];
+        u32 Match = (C == Delimiter) || (Index == S.Size - 1);
+        if (Match)
+        {
+            ++MatchCount;
+        }
+    }
+    Result = StringList(Arena, MatchCount);
+    
+    u32 PrevStartIndex = 0;
+    u32 MatchIndex = 0;
+    for (u32 Index = 0; Index < S.Size; ++Index)
+    {
+        u8 C = S.Data[Index];
+        
+        u32 Match = (C == Delimiter) || (Index == S.Size - 1);
+        if (Match)
+        {
+            string NewString;
+            NewString.Size = Index - PrevStartIndex + ((C == Delimiter) ? 0 : 1);
+            NewString.Data = S.Data + PrevStartIndex;
+            Result.Strings[MatchIndex++] = NewString;
+            PrevStartIndex = Index + 1;
+        }
+    }
+    
+    return Result;
+}
+
+i32 StringFirstIndexOf(string S, u32 Offset, u8 Delimiter)
+{
+    for (u32 Index = Offset; Index < S.Size; ++Index)
+    {
+        u8 C = S.Data[Index];
+        if (C == Delimiter)
+        {
+            return Index;
+        }
+    }
+    return -1;
 }
 
 inline void StringLowerCase(string String)

@@ -117,10 +117,4 @@ struct platform
     platform_create_and_write_file* CreateAndWriteFile;
 };
 
-struct cadvent_state
-{
-    memory_arena Arena;
-    platform Platform;
-};
-
 #endif
