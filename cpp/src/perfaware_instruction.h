@@ -13,6 +13,26 @@ enum instruction_bit_field_type : u32
     InstructionBitFieldType_Reg,
     InstructionBitFieldType_RM,
     InstructionBitFieldType_SR,
+    InstructionBitFieldType_Data,
+    InstructionBitFieldType_DataW,
+    InstructionBitFieldType_AddrLo,
+    InstructionBitFieldType_AddrHi,
+};
+
+char *InstructionBitFieldTypeStrings[] =
+{
+    "InstructionBitFieldType_None",
+    "InstructionBitFieldType_Bits",
+    "InstructionBitFieldType_Direction",
+    "InstructionBitFieldType_Word",
+    "InstructionBitFieldType_Mod",
+    "InstructionBitFieldType_Reg",
+    "InstructionBitFieldType_RM",
+    "InstructionBitFieldType_SR",
+    "InstructionBitFieldType_Data",
+    "InstructionBitFieldType_DataW",
+    "InstructionBitFieldType_AddrLo",
+    "InstructionBitFieldType_AddrHi",
 };
 
 struct instruction_bit_field
@@ -20,6 +40,7 @@ struct instruction_bit_field
     instruction_bit_field_type BitFieldType;
     u32 Size;
     u32 Offset;
+    u32 Value;
 };
 
 #define BIT_FIELD_COUNT 16

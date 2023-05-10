@@ -56,6 +56,13 @@ inline b32 StringCompare(string A, string B)
     return Result;
 }
 
+inline b32 StringCompare(string A, char *B)
+{
+    u32 S = StringLength(B);
+    b32 Result = StringCompare(A.Data, A.Size, (u8*)B, S);
+    return Result;
+}
+
 struct string_list
 {
     u32 Count;
@@ -70,12 +77,12 @@ inline string_list StringList(memory_arena *Arena, u32 Count)
     return Result;
 }
 
-string_list StringSplit(memory_arena *Arena, string S, u8 Delimiter)
+string_list StringSplit(memory_arena *Arena, string S, u32 Offset, u8 Delimiter)
 {
     string_list Result = {};
     
     u32 MatchCount = 0;
-    for (u32 Index = 0; Index < S.Size; ++Index)
+    for (u32 Index = Offset; Index < S.Size; ++Index)
     {
         u8 C = S.Data[Index];
         u32 Match = (C == Delimiter) || (Index == S.Size - 1);
@@ -86,9 +93,9 @@ string_list StringSplit(memory_arena *Arena, string S, u8 Delimiter)
     }
     Result = StringList(Arena, MatchCount);
     
-    u32 PrevStartIndex = 0;
+    u32 PrevStartIndex = Offset;
     u32 MatchIndex = 0;
-    for (u32 Index = 0; Index < S.Size; ++Index)
+    for (u32 Index = Offset; Index < S.Size; ++Index)
     {
         u8 C = S.Data[Index];
         
@@ -103,6 +110,12 @@ string_list StringSplit(memory_arena *Arena, string S, u8 Delimiter)
         }
     }
     
+    return Result;
+}
+
+inline string_list StringSplit(memory_arena *Arena, string S, u8 Delimiter)
+{
+    string_list Result = StringSplit(Arena, S, 0, Delimiter);
     return Result;
 }
 
@@ -179,8 +192,24 @@ u32 StringFromI32(string S, u32 Offset, i32 Value, u32 MinLength, b32 LeadingZer
     return LastIndex + 1;
 }
 
-u32 StringFromI32(string S, u32 Offset, i32 Value)
+inline u32 StringFromI32(string S, u32 Offset, i32 Value)
 {
     u32 Result = StringFromI32(S, Offset, Value, 0, false);
+    return Result;
+}
+
+i32 StringToI32(string S)
+{
+    i32 Result = 0;
+    i32 Exponent = 1;
+    
+    for (i32 StringIndex = S.Size - 1; StringIndex >= 0; --StringIndex)
+    {
+        char Character = S.Data[StringIndex];
+        i32 ShiftedCharacter = (Character - 48) * Exponent;
+        Result += ShiftedCharacter;
+        Exponent *= 10;
+    }
+    
     return Result;
 }

@@ -415,7 +415,11 @@ buffer Disassemble8086(buffer MachineCode)
 
 buffer Disassemble8086_(memory_arena *Arena, buffer MachineCode)
 {
+    buffer Result = {};
+    Result.Data = ArenaPushArray(u8, Arena, Kilobytes(8));
+    Result.Size = StringCopy(Result, Result.Size, "bits 16\n\n");
     
     
-    return {};
+    
+    return Result;
 }

@@ -7,14 +7,14 @@
 
 char* TestFileNames[] = 
 {
-    //"..\\..\\common\\resources\\part1\\listing_0037_single_register_mov",
-    //"..\\..\\common\\resources\\part1\\listing_0037_single_register_mov.asm",
+    "..\\..\\computer_enhance\\perfaware\\part1\\listing_0037_single_register_mov",
+    "..\\..\\computer_enhance\\perfaware\\part1\\listing_0037_single_register_mov.asm",
     //"..\\..\\common\\resources\\part1\\listing_0038_many_register_mov",
     //"..\\..\\common\\resources\\part1\\listing_0038_many_register_mov.asm",
     //"..\\..\\common\\resources\\part1\\listing_0039_more_movs",
     //"..\\..\\common\\resources\\part1\\listing_0039_more_movs.asm",
-    "..\\..\\common\\resources\\part1\\listing_0040_challenge_movs",
-    "..\\..\\common\\resources\\part1\\listing_0040_challenge_movs.asm",
+    //"..\\..\\common\\resources\\part1\\listing_0040_challenge_movs",
+    //"..\\..\\common\\resources\\part1\\listing_0040_challenge_movs.asm",
 };
 
 void Test()
@@ -36,7 +36,7 @@ void Test()
 
 int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowCmd)
 {
-    Test();
+    //Test();
     
     memory_arena Arena = Win32InitMemoryArena(Megabytes(16));
     

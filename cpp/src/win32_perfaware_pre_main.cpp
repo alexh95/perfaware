@@ -45,32 +45,76 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowC
         else if (Line.Data[0] == '+')
         {
             InstructionIndexToType[InstructionIndex] = (instruction_type)(InstructionNameIndex - 1);
-            string_list BitFieldSplit = StringSplit(&Arena, Line, ' ');
+            string_list BitFieldSplit = StringSplit(&Arena, Line, 1, ' ');
             u32 BitFieldIndex = 0;
             u32 Offset = 0;
             for (u32 BitFieldSplitIndex = 0; BitFieldSplitIndex < BitFieldSplit.Count; ++BitFieldSplitIndex)
             {
                 string BitFieldString = BitFieldSplit.Strings[BitFieldSplitIndex];
                 instruction_bit_field InstructionBitField = {};
-                if (BitFieldString.Data[0] == '0' || BitFieldString.Data[1] == '0')
+                if (BitFieldString.Data[0] == '0' || BitFieldString.Data[0] == '1')
                 {
                     InstructionBitField.BitFieldType = InstructionBitFieldType_Bits;
                     InstructionBitField.Size = BitFieldString.Size;
+                    InstructionBitField.Value = StringToI32(BitFieldString);
                 }
-                else if (BitFieldString.Data[0] == 'd')
+                else if (StringCompare(BitFieldString, "d"))
                 {
                     InstructionBitField.BitFieldType = InstructionBitFieldType_Direction;
                     InstructionBitField.Size = 1;
                 }
-                else if (BitFieldString.Data[0] == 'w')
+                else if (StringCompare(BitFieldString, "w"))
                 {
                     InstructionBitField.BitFieldType = InstructionBitFieldType_Word;
                     InstructionBitField.Size = 1;
                 }
+                else if (StringCompare(BitFieldString, "mod"))
+                {
+                    InstructionBitField.BitFieldType = InstructionBitFieldType_Mod;
+                    InstructionBitField.Size = 2;
+                }
+                else if (StringCompare(BitFieldString, "reg"))
+                {
+                    InstructionBitField.BitFieldType = InstructionBitFieldType_Reg;
+                    InstructionBitField.Size = 3;
+                }
+                else if (StringCompare(BitFieldString, "r/m"))
+                {
+                    InstructionBitField.BitFieldType = InstructionBitFieldType_RM;
+                    InstructionBitField.Size = 3;
+                }
+                else if (StringCompare(BitFieldString, "SR"))
+                {
+                    InstructionBitField.BitFieldType = InstructionBitFieldType_SR;
+                    InstructionBitField.Size = 2;
+                }
+                else if (StringCompare(BitFieldString, "data"))
+                {
+                    InstructionBitField.BitFieldType = InstructionBitFieldType_Data;
+                    InstructionBitField.Size = 8;
+                }
+                else if (StringCompare(BitFieldString, "data-w"))
+                {
+                    InstructionBitField.BitFieldType = InstructionBitFieldType_DataW;
+                    InstructionBitField.Size = 8;
+                }
+                else if (StringCompare(BitFieldString, "addr-lo"))
+                {
+                    InstructionBitField.BitFieldType = InstructionBitFieldType_AddrLo;
+                    InstructionBitField.Size = 8;
+                }
+                else if (StringCompare(BitFieldString, "addr-hi"))
+                {
+                    InstructionBitField.BitFieldType = InstructionBitFieldType_AddrHi;
+                    InstructionBitField.Size = 8;
+                }
                 else if (BitFieldString.Data[0] == '|')
                 {
-                    // TODO(alex): check consistency
-                    // TODO(alex): check if last?
+                    Assert(Offset % 8 == 0);
+                }
+                else if (BitFieldString.Data[0] != ' ')
+                {
+                    InvalidCodePath;
                 }
                 
                 if (InstructionBitField.BitFieldType != InstructionBitFieldType_None)
@@ -101,7 +145,7 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowC
         LastIndex = StringCopy(Output, LastIndex, ",\n");
     }
     
-    LastIndex = StringCopy(Output, LastIndex, "    InstructionType_Count\n");
+    LastIndex = StringCopy(Output, LastIndex, "    InstructionType_Count,\n");
     LastIndex = StringCopy(Output, LastIndex, "};\n");
     LastIndex = StringCopy(Output, LastIndex, "\n");
     
@@ -114,28 +158,37 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowC
         LastIndex = StringCopy(Output, LastIndex, InstructionName);
         LastIndex = StringCopy(Output, LastIndex, "\",\n");
     }
-    LastIndex = StringCopy(Output, LastIndex, "    0\n");
+    LastIndex = StringCopy(Output, LastIndex, "    0,\n");
     LastIndex = StringCopy(Output, LastIndex, "};\n");
     LastIndex = StringCopy(Output, LastIndex, "\n");
     
-    LastIndex = StringCopy(Output, LastIndex, "instruction_encoding InstructionList[] = {\n");
+    LastIndex = StringCopy(Output, LastIndex, "instruction_encoding InstructionList[] =\n");
+    LastIndex = StringCopy(Output, LastIndex, "{\n");
     for (InstructionIndex = 0; InstructionIndex < InstructionCount; ++InstructionIndex)
     {
-        LastIndex = StringCopy(Output, LastIndex, "    {");
-        LastIndex = StringCopy(Output, LastIndex, "InstructionType_");
+        LastIndex = StringCopy(Output, LastIndex, "    {\n");
+        LastIndex = StringCopy(Output, LastIndex, "        InstructionType_");
         LastIndex = StringCopy(Output, LastIndex, InstructionTypeNames.Strings[InstructionIndexToType[InstructionIndex]]);
-        LastIndex = StringCopy(Output, LastIndex, ", {");
+        LastIndex = StringCopy(Output, LastIndex, ",\n");
+        LastIndex = StringCopy(Output, LastIndex, "        {\n");
         for (u32 BitFieldIndex = 0; BitFieldIndex < BIT_FIELD_COUNT; ++BitFieldIndex)
         {
             instruction_bit_field BitField = InstructionBitFields[BIT_FIELD_COUNT * InstructionIndex + BitFieldIndex];
             if (BitField.BitFieldType > InstructionBitFieldType_None)
             {
-                LastIndex = StringCopy(Output, LastIndex, "{");
-                LastIndex = StringCopy(Output, LastIndex, "},");
+                LastIndex = StringCopy(Output, LastIndex, "            {");
+                LastIndex = StringCopy(Output, LastIndex, InstructionBitFieldTypeStrings[BitField.BitFieldType]);
+                LastIndex = StringCopy(Output, LastIndex, ", ");
+                LastIndex = StringFromI32(Output, LastIndex, BitField.Size);
+                LastIndex = StringCopy(Output, LastIndex, ", ");
+                LastIndex = StringFromI32(Output, LastIndex, BitField.Offset);
+                LastIndex = StringCopy(Output, LastIndex, ", 0b");
+                LastIndex = StringFromI32(Output, LastIndex, BitField.Value);
+                LastIndex = StringCopy(Output, LastIndex, "},\n");
             }
         }
-        LastIndex = StringCopy(Output, LastIndex, "}");
-        LastIndex = StringCopy(Output, LastIndex, "},\n");
+        LastIndex = StringCopy(Output, LastIndex, "        },\n");
+        LastIndex = StringCopy(Output, LastIndex, "    },\n");
     }
     LastIndex = StringCopy(Output, LastIndex, "};\n");
     
