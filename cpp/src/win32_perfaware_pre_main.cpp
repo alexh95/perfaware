@@ -29,6 +29,7 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowC
     string CurrentInstructionName;
     string_list InstructionTypeNames = StringList(&Arena, InstructionTypeCount);
     instruction_type *InstructionIndexToType = ArenaPushArray(instruction_type, &Arena, InstructionCount);
+    u32 *InstructionSizes = ArenaPushArray(u32, &Arena, InstructionCount);
     instruction_bit_field *InstructionBitFields = ArenaPushArray(instruction_bit_field, &Arena, InstructionCount * BIT_FIELD_COUNT);
     u32 InstructionNameIndex = 0;
     u32 InstructionIndex = 0;
@@ -125,6 +126,7 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowC
                     InstructionBitFields[BIT_FIELD_COUNT * InstructionIndex + BitFieldIndex++] = InstructionBitField;
                 }
             }
+            InstructionSizes[InstructionIndex] = Offset / 8;
             ++InstructionIndex;
         }
     }
@@ -162,13 +164,16 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowC
     LastIndex = StringCopy(Output, LastIndex, "};\n");
     LastIndex = StringCopy(Output, LastIndex, "\n");
     
-    LastIndex = StringCopy(Output, LastIndex, "instruction_encoding InstructionList[] =\n");
+    LastIndex = StringCopy(Output, LastIndex, "instruction_encoding InstructionEncodingList[] =\n");
     LastIndex = StringCopy(Output, LastIndex, "{\n");
     for (InstructionIndex = 0; InstructionIndex < InstructionCount; ++InstructionIndex)
     {
         LastIndex = StringCopy(Output, LastIndex, "    {\n");
         LastIndex = StringCopy(Output, LastIndex, "        InstructionType_");
         LastIndex = StringCopy(Output, LastIndex, InstructionTypeNames.Strings[InstructionIndexToType[InstructionIndex]]);
+        LastIndex = StringCopy(Output, LastIndex, ",\n");
+        LastIndex = StringCopy(Output, LastIndex, "        ");
+        LastIndex = StringFromI32(Output, LastIndex, InstructionSizes[InstructionIndex]);
         LastIndex = StringCopy(Output, LastIndex, ",\n");
         LastIndex = StringCopy(Output, LastIndex, "        {\n");
         for (u32 BitFieldIndex = 0; BitFieldIndex < BIT_FIELD_COUNT; ++BitFieldIndex)

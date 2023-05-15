@@ -413,13 +413,86 @@ buffer Disassemble8086(buffer MachineCode)
     return Disassemble8086(&Arena, MachineCode);
 }
 
+u8 MakeBitFieldMask(u32 Size)
+{
+    u8 Result = 0;
+    
+    for (u32 Index = 0; Index < Size; ++Index)
+    {
+        Result = (Result << 1) | 1;
+    }
+    
+    return Result;
+}
+
+u8 GetBitFieldValue(instruction_bit_field *InstructionBitField, u32 CurrentMachineCodeIndex, buffer MachineCode)
+{
+    u32 ByteOffset = InstructionBitField->Offset / 8;
+    u32 SubbyteOffset = InstructionBitField->Offset % 8;
+    u8 InstructionByte = MachineCode.Data[CurrentMachineCodeIndex + ByteOffset];
+    u8 BitFieldShifted = InstructionByte >> (8 - InstructionBitField->Size - SubbyteOffset);
+    u8 BitFieldMask = MakeBitFieldMask(InstructionBitField->Size);
+    u8 Result = BitFieldShifted & BitFieldMask;
+    return Result;
+}
+
+instruction_encoding ValidateInstructionAndFillValues(instruction_encoding InstructionEncoding, u32 CurrentMachineCodeIndex, buffer MachineCode)
+{
+    for (u32 InstructionBitFieldIndex = 0;
+         InstructionBitFieldIndex < BIT_FIELD_COUNT;
+         ++InstructionBitFieldIndex)
+    {
+        instruction_bit_field *InstructionBitField = InstructionEncoding.Fields + InstructionBitFieldIndex;
+        if (InstructionBitField->BitFieldType > InstructionBitFieldType_None)
+        {
+            u8 BitFieldValue = GetBitFieldValue(InstructionBitField, CurrentMachineCodeIndex, MachineCode);
+            if (InstructionBitField->BitFieldType == InstructionBitFieldType_Bits)
+            {
+                if (BitFieldValue != InstructionBitField->Value)
+                {
+                    return {InstructionType_None};
+                }
+            }
+            else
+            {
+                InstructionBitField->Value = BitFieldValue;
+            }
+        }
+    }
+    
+    return InstructionEncoding;
+}
+
+instruction_encoding DecodeInstruction(u32 CurrentMachineCodeIndex, buffer MachineCode)
+{
+    for (u32 InstructionEncodingIndex = 0;
+         InstructionEncodingIndex < ArrayCount(InstructionEncodingList);
+         ++InstructionEncodingIndex)
+    {
+        instruction_encoding InstructionEncodingCandidate = InstructionEncodingList[InstructionEncodingIndex];
+        instruction_encoding InstructionEncoding = ValidateInstructionAndFillValues(InstructionEncodingCandidate, CurrentMachineCodeIndex, MachineCode);
+        if (InstructionEncoding.Type > InstructionType_None)
+        {
+            return InstructionEncoding;
+        }
+    }
+    
+    InvalidCodePath;
+    return {};
+}
+
 buffer Disassemble8086_(memory_arena *Arena, buffer MachineCode)
 {
     buffer Result = {};
     Result.Data = ArenaPushArray(u8, Arena, Kilobytes(8));
     Result.Size = StringCopy(Result, Result.Size, "bits 16\n\n");
     
-    
+    u32 CurrentMachineCodeIndex = 0;
+    while (CurrentMachineCodeIndex < MachineCode.Size)
+    {
+        instruction_encoding InstructionEncoding = DecodeInstruction(CurrentMachineCodeIndex, MachineCode);
+        CurrentMachineCodeIndex += InstructionEncoding.ByteCount;
+    }
     
     return Result;
 }

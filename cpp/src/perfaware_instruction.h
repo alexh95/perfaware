@@ -48,6 +48,7 @@ struct instruction_bit_field
 struct instruction_encoding
 {
     instruction_type Type;
+    u32 ByteCount;
     instruction_bit_field Fields[BIT_FIELD_COUNT];
 };
 
