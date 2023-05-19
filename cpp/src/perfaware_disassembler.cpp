@@ -425,60 +425,134 @@ u8 MakeBitFieldMask(u32 Size)
     return Result;
 }
 
-u8 GetBitFieldValue(instruction_bit_field *InstructionBitField, u32 CurrentMachineCodeIndex, buffer MachineCode)
+u8 GetBitFieldValue(instruction_bit_field InstructionBitField, u32 CurrentMachineCodeIndex, buffer MachineCode)
 {
-    u32 ByteOffset = InstructionBitField->Offset / 8;
-    u32 SubbyteOffset = InstructionBitField->Offset % 8;
+    u32 ByteOffset = InstructionBitField.Offset / 8;
+    u32 SubbyteOffset = InstructionBitField.Offset % 8;
     u8 InstructionByte = MachineCode.Data[CurrentMachineCodeIndex + ByteOffset];
-    u8 BitFieldShifted = InstructionByte >> (8 - InstructionBitField->Size - SubbyteOffset);
-    u8 BitFieldMask = MakeBitFieldMask(InstructionBitField->Size);
+    u8 BitFieldShifted = InstructionByte >> (8 - InstructionBitField.Size - SubbyteOffset);
+    u8 BitFieldMask = MakeBitFieldMask(InstructionBitField.Size);
     u8 Result = BitFieldShifted & BitFieldMask;
     return Result;
 }
 
-instruction_encoding ValidateInstructionAndFillValues(instruction_encoding InstructionEncoding, u32 CurrentMachineCodeIndex, buffer MachineCode)
+instruction_bit_field MakeDisplacementBitField(u32 Offset, u32 CurrentMachineCodeIndex, buffer MachineCode)
 {
+    instruction_bit_field Result = {};
+    Result.BitFieldType = InstructionBitFieldType_Displacement;
+    Result.Size = 8;
+    Result.Offset = Offset;
+    Result.Value = GetBitFieldValue(Result, CurrentMachineCodeIndex, MachineCode);
+    return Result;
+}
+
+instruction ValidateInstructionAndFillValues(instruction_encoding InstructionEncoding, u32 CurrentMachineCodeIndex, buffer MachineCode)
+{
+    instruction Result = {InstructionEncoding.Type};
+    u32 ResultBitFieldIndex = 0;
+    u32 UsedBits = 0;
+    u8 ModValue = 255;
+    
     for (u32 InstructionBitFieldIndex = 0;
          InstructionBitFieldIndex < BIT_FIELD_COUNT;
          ++InstructionBitFieldIndex)
     {
-        instruction_bit_field *InstructionBitField = InstructionEncoding.Fields + InstructionBitFieldIndex;
-        if (InstructionBitField->BitFieldType > InstructionBitFieldType_None)
+        instruction_bit_field InstructionBitField = InstructionEncoding.Fields[InstructionBitFieldIndex];
+        if (InstructionBitField.BitFieldType > InstructionBitFieldType_None)
         {
             u8 BitFieldValue = GetBitFieldValue(InstructionBitField, CurrentMachineCodeIndex, MachineCode);
-            if (InstructionBitField->BitFieldType == InstructionBitFieldType_Bits)
+            if (InstructionBitField.BitFieldType == InstructionBitFieldType_Bits)
             {
-                if (BitFieldValue != InstructionBitField->Value)
+                if (BitFieldValue != InstructionBitField.Value)
                 {
                     return {InstructionType_None};
                 }
             }
             else
             {
-                InstructionBitField->Value = BitFieldValue;
+                InstructionBitField.Value = BitFieldValue;
+            }
+            
+            Result.Fields[ResultBitFieldIndex++] = InstructionBitField;
+            UsedBits += InstructionBitField.Size;
+            
+            if (InstructionBitField.BitFieldType == InstructionBitFieldType_Mod)
+            {
+                ModValue = BitFieldValue;
+            }
+            // NOTE(alex): R/M is always followed by a displacement
+            if (InstructionBitField.BitFieldType == InstructionBitFieldType_RM)
+            {
+                Assert(ModValue < 255);
+                
+                if (ModValue == 1)
+                {
+                    Result.Fields[ResultBitFieldIndex++] = MakeDisplacementBitField(UsedBits, CurrentMachineCodeIndex, MachineCode);
+                    UsedBits += 8;
+                }
+                else if (ModValue == 2 || (ModValue == 3 && BitFieldValue == 6))
+                {
+                    Result.Fields[ResultBitFieldIndex++] = MakeDisplacementBitField(UsedBits, CurrentMachineCodeIndex, MachineCode);
+                    UsedBits += 8;
+                    Result.Fields[ResultBitFieldIndex++] = MakeDisplacementBitField(UsedBits, CurrentMachineCodeIndex, MachineCode);
+                    UsedBits += 8;
+                }
             }
         }
     }
     
-    return InstructionEncoding;
+    Assert(UsedBits % 8 == 0);
+    Result.ByteCount = UsedBits / 8;
+    return Result;
 }
 
-instruction_encoding DecodeInstruction(u32 CurrentMachineCodeIndex, buffer MachineCode)
+instruction DecodeInstruction(u32 CurrentMachineCodeIndex, buffer MachineCode)
 {
     for (u32 InstructionEncodingIndex = 0;
          InstructionEncodingIndex < ArrayCount(InstructionEncodingList);
          ++InstructionEncodingIndex)
     {
-        instruction_encoding InstructionEncodingCandidate = InstructionEncodingList[InstructionEncodingIndex];
-        instruction_encoding InstructionEncoding = ValidateInstructionAndFillValues(InstructionEncodingCandidate, CurrentMachineCodeIndex, MachineCode);
-        if (InstructionEncoding.Type > InstructionType_None)
+        instruction_encoding InstructionEncoding = InstructionEncodingList[InstructionEncodingIndex];
+        instruction Instruction =
+            ValidateInstructionAndFillValues(InstructionEncoding, CurrentMachineCodeIndex, MachineCode);
+        if (Instruction.Type > InstructionType_None)
         {
-            return InstructionEncoding;
+            return Instruction;
         }
     }
     
     InvalidCodePath;
     return {};
+}
+
+u32 WriteInstructionOperand(string Output, u32 Offset, instruction_operand Operand)
+{
+    if (Operand.Type == OperandType_Register)
+    {
+        char *Name = RegisterName[Operand.RM][Operand.Wide];
+        Offset = StringCopy(Output, Offset, Name);
+    }
+    
+    return Offset;
+}
+
+u32 WriteInstruction(string Output, u32 Offset, instruction Instruction)
+{
+    Offset = StringCopy(Output, Offset, InstructionTypeToName[Instruction.Type]);
+    
+    if (Instruction.OperandCount > 0)
+    {
+        Offset = StringCopy(Output, Offset, " ");
+        Offset = WriteInstructionOperand(Output, Offset, Instruction.Operands[0]);
+    }
+    if (Instruction.OperandCount > 1)
+    {
+        Offset = StringCopy(Output, Offset, ", ");
+        Offset = WriteInstructionOperand(Output, Offset, Instruction.Operands[1]);
+    }
+    
+    Offset = StringCopy(Output, Offset, "\n");
+    return Offset;
 }
 
 buffer Disassemble8086_(memory_arena *Arena, buffer MachineCode)
@@ -490,8 +564,9 @@ buffer Disassemble8086_(memory_arena *Arena, buffer MachineCode)
     u32 CurrentMachineCodeIndex = 0;
     while (CurrentMachineCodeIndex < MachineCode.Size)
     {
-        instruction_encoding InstructionEncoding = DecodeInstruction(CurrentMachineCodeIndex, MachineCode);
-        CurrentMachineCodeIndex += InstructionEncoding.ByteCount;
+        instruction Instruction = DecodeInstruction(CurrentMachineCodeIndex, MachineCode);
+        CurrentMachineCodeIndex += Instruction.ByteCount;
+        Result.Size = WriteInstruction(Result, Result.Size, Instruction);
     }
     
     return Result;

@@ -17,6 +17,7 @@ enum instruction_bit_field_type : u32
     InstructionBitFieldType_DataW,
     InstructionBitFieldType_AddrLo,
     InstructionBitFieldType_AddrHi,
+    InstructionBitFieldType_Displacement,
 };
 
 char *InstructionBitFieldTypeStrings[] =
@@ -33,6 +34,7 @@ char *InstructionBitFieldTypeStrings[] =
     "InstructionBitFieldType_DataW",
     "InstructionBitFieldType_AddrLo",
     "InstructionBitFieldType_AddrHi",
+    "InstructionBitFieldType_Displacement",
 };
 
 struct instruction_bit_field
@@ -48,8 +50,43 @@ struct instruction_bit_field
 struct instruction_encoding
 {
     instruction_type Type;
-    u32 ByteCount;
     instruction_bit_field Fields[BIT_FIELD_COUNT];
+};
+
+enum operand_type : u32
+{
+    OperandType_None = 0,
+    OperandType_Immediate,
+    OperandType_Register,
+    OperandType_EffectiveAddressCalculation,
+};
+
+char *RegisterName[8][2] =
+{
+    {"AL", "AX"},
+    {"CL", "CX"},
+    {"DL", "DX"},
+    {"BL", "BX"},
+    {"AH", "SP"},
+    {"CH", "BP"},
+    {"DH", "SI"},
+    {"BH", "DI"},
+};
+
+struct instruction_operand
+{
+    operand_type Type;
+    u32 Mod;
+    u32 RM;
+    b32 Wide;
+};
+
+struct instruction
+{
+    instruction_type Type;
+    u32 ByteCount;
+    u32 OperandCount;
+    instruction_operand Operands[2];
 };
 
 #endif
