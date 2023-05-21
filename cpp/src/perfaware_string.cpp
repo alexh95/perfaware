@@ -1,5 +1,13 @@
 #include "perfaware_types.h"
 
+string String(char *S)
+{
+    string Result;
+    Result.Data = (u8*)S;
+    Result.Size = StringLength(S);
+    return Result;
+}
+
 string StringI(string S, u32 FromIndex, u32 ToIndex)
 {
     string Result;
@@ -17,19 +25,36 @@ u32 StringCopy(char* Dst, u32 DstOffset, char* Src, u32 SrcOffset, u32 SrcCount)
     return DstOffset + SrcCount;
 }
 
-u32 inline StringCopy(string Dst, u32 DstOffset, char* Src, u32 SrcOffset, u32 SrcCount)
+inline u32 StringCopy(string Dst, u32 DstOffset, char* Src, u32 SrcOffset, u32 SrcCount)
 {
     return StringCopy((char*)Dst.Data, DstOffset, Src, SrcOffset, SrcCount);
 }
 
-u32 inline StringCopy(string Dst, u32 DstOffset, char* Src)
+inline u32 StringCopy(string Dst, u32 DstOffset, char* Src)
 {
     return StringCopy((char*)Dst.Data, DstOffset, Src, 0, StringLength(Src));
 }
 
-u32 inline StringCopy(string Dst, u32 DstOffset, string Src)
+inline u32 StringCopy(string Dst, u32 DstOffset, string Src)
 {
     return StringCopy((char*)Dst.Data, DstOffset, (char*)Src.Data, 0, Src.Size);
+}
+
+inline u32 StringCopy(string Dst, char *Src)
+{
+    return StringCopy((char*)Dst.Data, 0, Src, 0, StringLength(Src));
+}
+
+inline u32 StringCopy(string Dst, string Src)
+{
+    return StringCopy((char*)Dst.Data, 0, (char*)Src.Data, 0, Src.Size);
+}
+
+u32 StringCopyZero(char* Dst, string Src)
+{
+    u32 Result = StringCopy(Dst, 0, (char*)Src.Data, 0, Src.Size);
+    Result = StringCopy(Dst, Result, "\0", 0, 1);
+    return Result;
 }
 
 b32 StringCompare(u8* A, u32 SizeA, u8* B, u32 SizeB)

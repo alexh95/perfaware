@@ -105,10 +105,10 @@ inline string ArenaPushStringInternal(memory_arena* Arena, string S)
     return Result;
 }
 
-#define PLATFORM_OPEN_AND_READ_FILE(Name) buffer Name(char* FileName)
+#define PLATFORM_OPEN_AND_READ_FILE(Name) buffer Name(string FileName)
 typedef PLATFORM_OPEN_AND_READ_FILE(platform_open_and_read_file);
 
-#define PLATFORM_CREATE_AND_WRITE_FILE(Name) void Name(char* FileName, buffer Buffer, u64 Size)
+#define PLATFORM_CREATE_AND_WRITE_FILE(Name) void Name(string FileName, buffer Buffer, u64 Size)
 typedef PLATFORM_CREATE_AND_WRITE_FILE(platform_create_and_write_file);
 
 struct platform

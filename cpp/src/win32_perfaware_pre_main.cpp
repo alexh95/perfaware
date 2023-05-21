@@ -1,13 +1,13 @@
 #include <Windows.h>
-#include "win32_perfaware_platform.cpp"
 #include "perfaware_string.cpp"
+#include "win32_perfaware_platform.cpp"
 #include "perfaware_instruction.h"
 
 int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowCmd)
 {
     memory_arena Arena = Win32InitMemoryArena(Megabytes(16));
     
-    buffer InstructionSpec = Win32OpenAndReadFile("..\\resources\\perfaware_instruction.spec");
+    buffer InstructionSpec = Win32OpenAndReadFile(String("..\\resources\\perfaware_instruction.spec"));
     string_list InstructionSpecLines = StringSplit(&Arena, InstructionSpec, '\n');
     
     u32 InstructionTypeCount = 0;
@@ -54,58 +54,58 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowC
                 instruction_bit_field InstructionBitField = {};
                 if (BitFieldString.Data[0] == '0' || BitFieldString.Data[0] == '1')
                 {
-                    InstructionBitField.BitFieldType = InstructionBitFieldType_Bits;
+                    InstructionBitField.Type = InstructionBitFieldType_Bits;
                     InstructionBitField.Size = BitFieldString.Size;
                     InstructionBitField.Value = StringToI32(BitFieldString);
                 }
                 else if (StringCompare(BitFieldString, "d"))
                 {
-                    InstructionBitField.BitFieldType = InstructionBitFieldType_Direction;
+                    InstructionBitField.Type = InstructionBitFieldType_Direction;
                     InstructionBitField.Size = 1;
                 }
                 else if (StringCompare(BitFieldString, "w"))
                 {
-                    InstructionBitField.BitFieldType = InstructionBitFieldType_Word;
+                    InstructionBitField.Type = InstructionBitFieldType_Word;
                     InstructionBitField.Size = 1;
                 }
                 else if (StringCompare(BitFieldString, "mod"))
                 {
-                    InstructionBitField.BitFieldType = InstructionBitFieldType_Mod;
+                    InstructionBitField.Type = InstructionBitFieldType_Mod;
                     InstructionBitField.Size = 2;
                 }
                 else if (StringCompare(BitFieldString, "reg"))
                 {
-                    InstructionBitField.BitFieldType = InstructionBitFieldType_Reg;
+                    InstructionBitField.Type = InstructionBitFieldType_Reg;
                     InstructionBitField.Size = 3;
                 }
                 else if (StringCompare(BitFieldString, "r/m"))
                 {
-                    InstructionBitField.BitFieldType = InstructionBitFieldType_RM;
+                    InstructionBitField.Type = InstructionBitFieldType_RM;
                     InstructionBitField.Size = 3;
                 }
                 else if (StringCompare(BitFieldString, "SR"))
                 {
-                    InstructionBitField.BitFieldType = InstructionBitFieldType_SR;
+                    InstructionBitField.Type = InstructionBitFieldType_SR;
                     InstructionBitField.Size = 2;
                 }
                 else if (StringCompare(BitFieldString, "data"))
                 {
-                    InstructionBitField.BitFieldType = InstructionBitFieldType_Data;
+                    InstructionBitField.Type = InstructionBitFieldType_Data;
                     InstructionBitField.Size = 8;
                 }
                 else if (StringCompare(BitFieldString, "data-w"))
                 {
-                    InstructionBitField.BitFieldType = InstructionBitFieldType_DataW;
+                    InstructionBitField.Type = InstructionBitFieldType_DataW;
                     InstructionBitField.Size = 8;
                 }
                 else if (StringCompare(BitFieldString, "addr-lo"))
                 {
-                    InstructionBitField.BitFieldType = InstructionBitFieldType_AddrLo;
+                    InstructionBitField.Type = InstructionBitFieldType_AddrLo;
                     InstructionBitField.Size = 8;
                 }
                 else if (StringCompare(BitFieldString, "addr-hi"))
                 {
-                    InstructionBitField.BitFieldType = InstructionBitFieldType_AddrHi;
+                    InstructionBitField.Type = InstructionBitFieldType_AddrHi;
                     InstructionBitField.Size = 8;
                 }
                 else if (BitFieldString.Data[0] == '|')
@@ -117,7 +117,7 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowC
                     InvalidCodePath;
                 }
                 
-                if (InstructionBitField.BitFieldType != InstructionBitFieldType_None)
+                if (InstructionBitField.Type != InstructionBitFieldType_None)
                 {
                     Assert(BitFieldIndex < BIT_FIELD_COUNT);
                     InstructionBitField.Offset = Offset;
@@ -174,10 +174,10 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowC
         for (u32 BitFieldIndex = 0; BitFieldIndex < BIT_FIELD_COUNT; ++BitFieldIndex)
         {
             instruction_bit_field BitField = InstructionBitFields[BIT_FIELD_COUNT * InstructionIndex + BitFieldIndex];
-            if (BitField.BitFieldType > InstructionBitFieldType_None)
+            if (BitField.Type > InstructionBitFieldType_None)
             {
                 LastIndex = StringCopy(Output, LastIndex, "            {");
-                LastIndex = StringCopy(Output, LastIndex, InstructionBitFieldTypeStrings[BitField.BitFieldType]);
+                LastIndex = StringCopy(Output, LastIndex, InstructionBitFieldTypeStrings[BitField.Type]);
                 LastIndex = StringCopy(Output, LastIndex, ", ");
                 LastIndex = StringFromI32(Output, LastIndex, BitField.Size);
                 LastIndex = StringCopy(Output, LastIndex, ", ");
@@ -194,7 +194,7 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowC
     
     LastIndex = StringCopy(Output, LastIndex, "\n");
     LastIndex = StringCopy(Output, LastIndex, "#endif\n");
-    Win32CreateAndWriteFile("..\\src\\perfaware_instruction_set.h", Output, LastIndex);
+    Win32CreateAndWriteFile(String("..\\src\\perfaware_instruction_set.h"), Output, LastIndex);
     
     return 0;
 }

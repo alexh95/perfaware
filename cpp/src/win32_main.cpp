@@ -5,44 +5,26 @@
 #include "perfaware_instruction_set.h"
 #include "perfaware_disassembler.cpp"
 
-char* TestFileNames[] = 
-{
-    "..\\..\\computer_enhance\\perfaware\\part1\\listing_0037_single_register_mov",
-    "..\\..\\computer_enhance\\perfaware\\part1\\listing_0037_single_register_mov.asm",
-    //"..\\..\\common\\resources\\part1\\listing_0038_many_register_mov",
-    //"..\\..\\common\\resources\\part1\\listing_0038_many_register_mov.asm",
-    //"..\\..\\common\\resources\\part1\\listing_0039_more_movs",
-    //"..\\..\\common\\resources\\part1\\listing_0039_more_movs.asm",
-    //"..\\..\\common\\resources\\part1\\listing_0040_challenge_movs",
-    //"..\\..\\common\\resources\\part1\\listing_0040_challenge_movs.asm",
-};
-
-void Test()
-{
-    for (u32 TestFileIndex = 0; TestFileIndex < ArrayCount(TestFileNames); TestFileIndex += 2)
-    {
-        char* AssembledFileName = TestFileNames[TestFileIndex];
-        buffer MachineCode = Win32OpenAndReadFile(AssembledFileName);
-        buffer DisassembledCode = Disassemble8086(MachineCode);
-        
-        char* OriginalFileName = TestFileNames[TestFileIndex + 1];
-        buffer SourceCode = Win32OpenAndReadFile(OriginalFileName);
-        
-        Assert(true);
-        //b32 CodeMatches = StringCompare(SourceCode, DisassembledCode);
-        //Assert(CodeMatches);
-    }
-}
-
 int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowCmd)
 {
-    //Test();
-    
     memory_arena Arena = Win32InitMemoryArena(Megabytes(16));
     
-    buffer MachineCode = Win32OpenAndReadFile(CmdLine);
-    buffer DisassembledCode = Disassemble8086_(&Arena, MachineCode);
-    Win32CreateAndWriteFile("output.asm", DisassembledCode, DisassembledCode.Size);
+    string_list Args = StringSplit(&Arena, String(CmdLine), ' ');
+    string SrcFile = ArenaPushString(&Arena, Args.Strings[0].Size + Args.Strings[1].Size);
+    StringCopy(SrcFile, Args.Strings[0]);
+    StringCopy(SrcFile, Args.Strings[0].Size, Args.Strings[1]);
+    
+    string DstFilePrefix = String("disassembled_");
+    string DstFileExtension = String(".asm");
+    string DstFile = ArenaPushString(&Arena, DstFilePrefix.Size + Args.Strings[1].Size + DstFileExtension.Size);
+    StringCopy(DstFile, DstFilePrefix);
+    u32 DstFileIndex = StringCopy(DstFile, DstFilePrefix.Size, Args.Strings[1]);
+    StringCopy(DstFile, DstFileIndex, DstFileExtension);
+    
+    buffer MachineCode = Win32OpenAndReadFile(SrcFile);
+    buffer DisassembledCode = Disassemble8086(&Arena, MachineCode);
+    
+    Win32CreateAndWriteFile(DstFile, DisassembledCode, DisassembledCode.Size);
     
     return 0;
 }

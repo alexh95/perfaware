@@ -31,6 +31,10 @@ command_list = {
    .out = "*compilation*", .footer_panel = true, .save_dirty_files = true,
    .cmd = { { ".\\win32_debug_build.bat", .os = "win" }, }, 
  },
+ { .name = "disassemble_all",
+   .out = "*run*", .footer_panel = true, .save_dirty_files = true,
+   .cmd = { { ".\\win32_disassemble_all.bat", .os = "win" }, }, 
+ },
  { .name = "run",
    .out = "*run*", .footer_panel = false, .save_dirty_files = false,
    .cmd = { {  ".\\build\\win32_main.exe", .os = "win" }, },
@@ -39,4 +43,4 @@ command_list = {
 
 fkey_command[3] = "build_debug";
 fkey_command[4] = "run";
-
+fkey_command[5] = "disassemble_all";

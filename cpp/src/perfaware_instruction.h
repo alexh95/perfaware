@@ -39,7 +39,7 @@ char *InstructionBitFieldTypeStrings[] =
 
 struct instruction_bit_field
 {
-    instruction_bit_field_type BitFieldType;
+    instruction_bit_field_type Type;
     u32 Size;
     u32 Offset;
     u32 Value;
@@ -76,17 +76,19 @@ char *RegisterName[8][2] =
 struct instruction_operand
 {
     operand_type Type;
-    u32 Mod;
-    u32 RM;
-    b32 Wide;
+    u32 Value;
 };
 
 struct instruction
 {
     instruction_type Type;
-    u32 ByteCount;
+    b32 Direction;
+    b32 Word;
+    u32 Mod;
+    u32 RM;
     u32 OperandCount;
     instruction_operand Operands[2];
+    u32 ByteCount;
 };
 
 #endif
