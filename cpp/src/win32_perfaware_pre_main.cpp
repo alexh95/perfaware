@@ -56,7 +56,7 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowC
                 {
                     InstructionBitField.Type = InstructionBitFieldType_Bits;
                     InstructionBitField.Size = BitFieldString.Size;
-                    InstructionBitField.Value = StringToI32(BitFieldString);
+                    InstructionBitField.Value = StringToS32(BitFieldString);
                 }
                 else if (StringCompare(BitFieldString, "d"))
                 {
@@ -107,6 +107,10 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowC
                 {
                     InstructionBitField.Type = InstructionBitFieldType_AddrHi;
                     InstructionBitField.Size = 8;
+                }
+                else if (StringStartsWith(BitFieldString, "implicit"))
+                {
+                    
                 }
                 else if (BitFieldString.Data[0] == '|')
                 {
@@ -179,11 +183,11 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowC
                 LastIndex = StringCopy(Output, LastIndex, "            {");
                 LastIndex = StringCopy(Output, LastIndex, InstructionBitFieldTypeStrings[BitField.Type]);
                 LastIndex = StringCopy(Output, LastIndex, ", ");
-                LastIndex = StringFromI32(Output, LastIndex, BitField.Size);
+                LastIndex = StringFromS32(Output, LastIndex, BitField.Size);
                 LastIndex = StringCopy(Output, LastIndex, ", ");
-                LastIndex = StringFromI32(Output, LastIndex, BitField.Offset);
+                LastIndex = StringFromS32(Output, LastIndex, BitField.Offset);
                 LastIndex = StringCopy(Output, LastIndex, ", 0b");
-                LastIndex = StringFromI32(Output, LastIndex, BitField.Value);
+                LastIndex = StringFromS32(Output, LastIndex, BitField.Value);
                 LastIndex = StringCopy(Output, LastIndex, "},\n");
             }
         }

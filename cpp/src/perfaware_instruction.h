@@ -73,6 +73,18 @@ char *RegisterName[8][2] =
     {"BH", "DI"},
 };
 
+char *EffectiveAddressCalculation[8] =
+{
+    "BX + SI",
+    "BX + DI",
+    "BP + SI",
+    "BP + DI",
+    "SI",
+    "DI",
+    "BP",
+    "BX",
+};
+
 struct instruction_operand
 {
     operand_type Type;

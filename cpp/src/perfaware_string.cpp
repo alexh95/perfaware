@@ -144,7 +144,7 @@ inline string_list StringSplit(memory_arena *Arena, string S, u8 Delimiter)
     return Result;
 }
 
-i32 StringFirstIndexOf(string S, u32 Offset, u8 Delimiter)
+s32 StringFirstIndexOf(string S, u32 Offset, u8 Delimiter)
 {
     for (u32 Index = Offset; Index < S.Size; ++Index)
     {
@@ -169,10 +169,10 @@ inline void StringLowerCase(string String)
     }
 }
 
-#define MAX_STRING_LENGTH_I32 11
-u32 StringFromI32(string S, u32 Offset, i32 Value, u32 MinLength, b32 LeadingZeros)
+#define MAX_STRING_LENGTH_S32 11
+u32 StringFromS32(string S, u32 Offset, s32 Value, u32 MinLength, b32 LeadingZeros)
 {
-    u8 Characters[MAX_STRING_LENGTH_I32] = {};
+    u8 Characters[MAX_STRING_LENGTH_S32] = {};
     u32 Size = 0;
     b32 Negative = false;
     if (Value < 0)
@@ -217,21 +217,21 @@ u32 StringFromI32(string S, u32 Offset, i32 Value, u32 MinLength, b32 LeadingZer
     return LastIndex + 1;
 }
 
-inline u32 StringFromI32(string S, u32 Offset, i32 Value)
+inline u32 StringFromS32(string S, u32 Offset, s32 Value)
 {
-    u32 Result = StringFromI32(S, Offset, Value, 0, false);
+    u32 Result = StringFromS32(S, Offset, Value, 0, false);
     return Result;
 }
 
-i32 StringToI32(string S)
+s32 StringToS32(string S)
 {
-    i32 Result = 0;
-    i32 Exponent = 1;
+    s32 Result = 0;
+    s32 Exponent = 1;
     
-    for (i32 StringIndex = S.Size - 1; StringIndex >= 0; --StringIndex)
+    for (s32 StringIndex = S.Size - 1; StringIndex >= 0; --StringIndex)
     {
         char Character = S.Data[StringIndex];
-        i32 ShiftedCharacter = (Character - 48) * Exponent;
+        s32 ShiftedCharacter = (Character - 48) * Exponent;
         Result += ShiftedCharacter;
         Exponent *= 10;
     }
