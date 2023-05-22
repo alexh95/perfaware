@@ -110,7 +110,8 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowC
                 }
                 else if (StringStartsWith(BitFieldString, "implicit"))
                 {
-                    
+                    u32 ImplicitArgumentStartIndex = StringFirstIndexOf(BitFieldString, ':');
+                    string Argument = StringI(BitFieldString, ImplicitArgumentStartIndex + 1, BitFieldString);
                 }
                 else if (BitFieldString.Data[0] == '|')
                 {
