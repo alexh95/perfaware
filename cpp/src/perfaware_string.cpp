@@ -88,6 +88,25 @@ inline b32 StringCompare(string A, char *B)
     return Result;
 }
 
+b32 StringStartsWith(string S, char *Prefix)
+{
+    u32 PrefixSize = StringLength(Prefix);
+    if (S.Size < PrefixSize)
+    {
+        return false;
+    }
+    
+    for (u32 Index = 0; Index < PrefixSize; ++Index)
+    {
+        if (S.Data[Index] != Prefix[Index])
+        {
+            return false;
+        }
+    }
+    
+    return true;
+}
+
 struct string_list
 {
     u32 Count;

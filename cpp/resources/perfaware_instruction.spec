@@ -4,10 +4,10 @@ Data transfer
 
 $MOV
 +100010 d w | mod reg r/m |
-+1100011 w | mod 000 r/m |
-+1011 w reg | data | data-w |
-+1010000 w implicit() | addr-lo | addr-hi |
-+1010001 w | addr-lo | addr-hi |
++1100011 implicit:1 d w | mod 000 r/m | data | data-w
++1011 implicit:1 d w reg | data | data-w |
++1010000 implicit:1 d w | implicit:0 mod implicit:0 reg implicit:6 r/m |
++1010001 implicit:0 d w | implicit:0 mod implicit:0 reg implicit:6 r/m |
 +100011 d 0 | mod 0 SR r/m |
  10001110 | mod 0 SR r/m |
  10001100 | mod 0 SR r/m |

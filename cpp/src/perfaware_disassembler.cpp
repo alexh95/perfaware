@@ -14,6 +14,11 @@ u8 MakeBitFieldMask(u32 Size)
 
 u8 GetBitFieldValue(instruction_bit_field InstructionBitField, u32 CurrentMachineCodeIndex, buffer MachineCode)
 {
+    if (InstructionBitField.Size == 0)
+    {
+        return (u8)InstructionBitField.Value;
+    }
+    
     u32 ByteOffset = InstructionBitField.Offset / 8;
     u32 SubbyteOffset = InstructionBitField.Offset % 8;
     u8 InstructionByte = MachineCode.Data[CurrentMachineCodeIndex + ByteOffset];
@@ -39,6 +44,7 @@ instruction ValidateInstructionAndFillValues(instruction_encoding InstructionEnc
     Result.Type = InstructionEncoding.Type;
     Result.Mod = 4;
     u32 UsedBits = 0;
+    u32 Displacement = 0;
     
     for (u32 InstructionBitFieldIndex = 0;
          InstructionBitFieldIndex < BIT_FIELD_COUNT;
@@ -47,7 +53,7 @@ instruction ValidateInstructionAndFillValues(instruction_encoding InstructionEnc
         instruction_bit_field InstructionBitField = InstructionEncoding.Fields[InstructionBitFieldIndex];
         if (InstructionBitField.Type > InstructionBitFieldType_None)
         {
-            u8 BitFieldValue = GetBitFieldValue(InstructionBitField, CurrentMachineCodeIndex, MachineCode);
+            u8 BitFieldValue = GetBitFieldValue(InstructionBitField, CurrentMachineCodeIndex + Displacement, MachineCode);
             UsedBits += InstructionBitField.Size;
             if (InstructionBitField.Type == InstructionBitFieldType_Bits)
             {
@@ -98,6 +104,7 @@ instruction ValidateInstructionAndFillValues(instruction_encoding InstructionEnc
                     {
                         u32 ImmediateValue = GetNextBytes(MachineCode, CurrentMachineCodeIndex + UsedBytes, true);
                         UsedBits += 16;
+                        Displacement = 2;
                         
                         Operand.Value = ImmediateValue;
                     }
@@ -108,6 +115,7 @@ instruction ValidateInstructionAndFillValues(instruction_encoding InstructionEnc
                 {
                     u32 ImmediateValue = GetNextBytes(MachineCode, CurrentMachineCodeIndex + UsedBytes, false);
                     UsedBits += 8;
+                    Displacement = 1;
                     
                     instruction_operand Operand = {};
                     Operand.Type = OperandType_EffectiveAddressCalculation;
@@ -118,6 +126,7 @@ instruction ValidateInstructionAndFillValues(instruction_encoding InstructionEnc
                 {
                     u32 ImmediateValue = GetNextBytes(MachineCode, CurrentMachineCodeIndex + UsedBytes, true);
                     UsedBits += 16;
+                    Displacement = 2;
                     
                     instruction_operand Operand = {};
                     Operand.Type = OperandType_EffectiveAddressCalculation;
@@ -134,14 +143,34 @@ instruction ValidateInstructionAndFillValues(instruction_encoding InstructionEnc
             }
             else if (InstructionBitField.Type == InstructionBitFieldType_Data)
             {
-                Result.Direction = true;
-                
                 instruction_operand Operand = {};
                 Operand.Type = OperandType_Immediate;
                 Operand.Value = BitFieldValue;
                 Result.Operands[Result.OperandCount++] = Operand;
             }
             else if (InstructionBitField.Type == InstructionBitFieldType_DataW)
+            {
+                if (Result.Word)
+                {
+                    // NOTE(alex): the last operand is assumed to be the one we are interested in
+                    instruction_operand Operand = Result.Operands[Result.OperandCount - 1];
+                    Operand.Value |= BitFieldValue << 8;
+                    Result.Operands[Result.OperandCount - 1] = Operand;
+                }
+                else
+                {
+                    // TODO(alex): make this better
+                    UsedBits -= 8;
+                }
+            }
+            else if (InstructionBitField.Type == InstructionBitFieldType_AddrLo)
+            {
+                instruction_operand Operand = {};
+                Operand.Type = OperandType_Immediate;
+                Operand.Value = BitFieldValue;
+                Result.Operands[Result.OperandCount++] = Operand;
+            }
+            else if (InstructionBitField.Type == InstructionBitFieldType_AddrHi)
             {
                 if (Result.Word)
                 {
@@ -186,12 +215,24 @@ instruction DecodeInstruction(u32 CurrentMachineCodeIndex, buffer MachineCode)
     return {};
 }
 
-u32 WriteInstructionOperand(string Output, u32 Offset, instruction Instruction, u32 OperandIndex)
+u32 WriteInstructionOperand(string Output, u32 Offset, instruction Instruction, u32 OperandIndex, b32 UseExplicitType)
 {
     instruction_operand Operand = Instruction.Operands[OperandIndex];
     
     if (Operand.Type == OperandType_Immediate)
     {
+        if (UseExplicitType)
+        {
+            if (Instruction.Word)
+            {
+                Offset = StringCopy(Output, Offset, "word ");
+            }
+            else
+            {
+                Offset = StringCopy(Output, Offset, "byte ");
+            }
+        }
+        
         s32 Value;
         if (Instruction.Word)
         {
@@ -284,13 +325,15 @@ u32 WriteInstruction(string Output, u32 Offset, instruction Instruction)
         // NOTE(alex): Reg is considered to always be the first operand
         u32 OperandIndex = Instruction.Direction ? 0 : 1;
         Offset = StringCopy(Output, Offset, " ");
-        Offset = WriteInstructionOperand(Output, Offset, Instruction, OperandIndex);
+        Offset = WriteInstructionOperand(Output, Offset, Instruction, OperandIndex, false);
     }
     if (Instruction.OperandCount > 1)
     {
+        b32 UseExplicitType = Instruction.Direction && Instruction.Operands[0].Type == OperandType_EffectiveAddressCalculation;
+        
         u32 OperandIndex = Instruction.Direction ? 1 : 0;
         Offset = StringCopy(Output, Offset, ", ");
-        Offset = WriteInstructionOperand(Output, Offset, Instruction, OperandIndex);
+        Offset = WriteInstructionOperand(Output, Offset, Instruction, OperandIndex, UseExplicitType);
     }
     
     Offset = StringCopy(Output, Offset, "\n");

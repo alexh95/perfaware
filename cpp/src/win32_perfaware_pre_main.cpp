@@ -3,6 +3,25 @@
 #include "win32_perfaware_platform.cpp"
 #include "perfaware_instruction.h"
 
+u32 DecBinDec(u32 Value)
+{
+    u32 Result = 0;
+    u32 FlippedResult = 0;
+    u32 Count = 0;
+    while (Value > 0)
+    {
+        FlippedResult = FlippedResult * 10 + (Value & 1);
+        Value = Value >> 1;
+        ++Count;
+    }
+    for (u32 Index = 0; Index < Count; ++Index)
+    {
+        Result = Result * 10 + (FlippedResult % 10);
+        FlippedResult = FlippedResult / 10;
+    }
+    return Result;
+}
+
 int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowCmd)
 {
     memory_arena Arena = Win32InitMemoryArena(Megabytes(16));
@@ -48,6 +67,9 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowC
             string_list BitFieldSplit = StringSplit(&Arena, Line, 1, ' ');
             u32 BitFieldIndex = 0;
             u32 Offset = 0;
+            b32 ImplicitPresent = false;
+            s32 ImplicitValue = 0;
+            
             for (u32 BitFieldSplitIndex = 0; BitFieldSplitIndex < BitFieldSplit.Count; ++BitFieldSplitIndex)
             {
                 string BitFieldString = BitFieldSplit.Strings[BitFieldSplitIndex];
@@ -110,8 +132,11 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowC
                 }
                 else if (StringStartsWith(BitFieldString, "implicit"))
                 {
-                    u32 ImplicitArgumentStartIndex = StringFirstIndexOf(BitFieldString, ':');
-                    string Argument = StringI(BitFieldString, ImplicitArgumentStartIndex + 1, BitFieldString);
+                    u32 ImplicitParameterStartIndex = StringFirstIndexOf(BitFieldString, 0, ':');
+                    string Parameter = StringI(BitFieldString, ImplicitParameterStartIndex + 1, BitFieldString.Size);
+                    
+                    ImplicitPresent = true;
+                    ImplicitValue = StringToS32(Parameter);
                 }
                 else if (BitFieldString.Data[0] == '|')
                 {
@@ -124,6 +149,14 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowC
                 
                 if (InstructionBitField.Type != InstructionBitFieldType_None)
                 {
+                    if (ImplicitPresent)
+                    {
+                        ImplicitPresent = false;
+                        // TODO(alex): huh
+                        InstructionBitField.Value = DecBinDec(ImplicitValue);
+                        InstructionBitField.Size = 0;
+                    }
+                    
                     Assert(BitFieldIndex < BIT_FIELD_COUNT);
                     InstructionBitField.Offset = Offset;
                     Offset += InstructionBitField.Size;
