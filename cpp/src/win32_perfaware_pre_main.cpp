@@ -29,7 +29,7 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowC
     buffer InstructionSpec = Win32OpenAndReadFile(String("..\\resources\\perfaware_instruction.spec"));
     string_list InstructionSpecLines = StringSplit(&Arena, InstructionSpec, '\n');
     
-    u32 InstructionTypeCount = 0;
+    u32 InstructionOperationTypeCount = 0;
     u32 InstructionCount = 0;
     for (u32 LineIndex = 0; LineIndex < InstructionSpecLines.Count; ++LineIndex)
     {
@@ -37,7 +37,7 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowC
         
         if (Line.Data[0] == '$')
         {
-            InstructionTypeCount++;
+            InstructionOperationTypeCount++;
         }
         else if (Line.Data[0] == '+')
         {
@@ -46,8 +46,8 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowC
     }
     
     string CurrentInstructionName;
-    string_list InstructionTypeNames = StringList(&Arena, InstructionTypeCount);
-    instruction_type *InstructionIndexToType = ArenaPushArray(instruction_type, &Arena, InstructionCount);
+    string_list InstructionOperationTypeNames = StringList(&Arena, InstructionOperationTypeCount);
+    instruction_operation_type *InstructionIndexToType = ArenaPushArray(instruction_operation_type, &Arena, InstructionCount);
     instruction_bit_field *InstructionBitFields = ArenaPushArray(instruction_bit_field, &Arena, InstructionCount * BIT_FIELD_COUNT);
     u32 InstructionNameIndex = 0;
     u32 InstructionIndex = 0;
@@ -59,11 +59,11 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowC
         if (Line.Data[0] == '$')
         {
             CurrentInstructionName = StringI(Line, 1, Line.Size);
-            InstructionTypeNames.Strings[InstructionNameIndex++] = CurrentInstructionName;
+            InstructionOperationTypeNames.Strings[InstructionNameIndex++] = CurrentInstructionName;
         }
         else if (Line.Data[0] == '+')
         {
-            InstructionIndexToType[InstructionIndex] = (instruction_type)(InstructionNameIndex - 1);
+            InstructionIndexToType[InstructionIndex] = (instruction_operation_type)(InstructionNameIndex - 1);
             string_list BitFieldSplit = StringSplit(&Arena, Line, 1, ' ');
             u32 BitFieldIndex = 0;
             u32 Offset = 0;
@@ -83,6 +83,11 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowC
                 else if (StringCompare(BitFieldString, "d"))
                 {
                     InstructionBitField.Type = InstructionBitFieldType_Direction;
+                    InstructionBitField.Size = 1;
+                }
+                else if (StringCompare(BitFieldString, "s"))
+                {
+                    InstructionBitField.Type = InstructionBitFieldType_SignExtension;
                     InstructionBitField.Size = 1;
                 }
                 else if (StringCompare(BitFieldString, "w"))
@@ -118,6 +123,11 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowC
                 else if (StringCompare(BitFieldString, "data-w"))
                 {
                     InstructionBitField.Type = InstructionBitFieldType_DataW;
+                    InstructionBitField.Size = 8;
+                }
+                else if (StringCompare(BitFieldString, "data-sw"))
+                {
+                    InstructionBitField.Type = InstructionBitFieldType_DataSW;
                     InstructionBitField.Size = 8;
                 }
                 else if (StringCompare(BitFieldString, "addr-lo"))
@@ -171,28 +181,28 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowC
     u32 LastIndex = StringCopy(Output, 0, "#ifndef PERFAWARE_INSTRUCTION_SET_H\n");
     LastIndex = StringCopy(Output, LastIndex, "#define PERFAWARE_INSTRUCTION_SET_H\n");
     LastIndex = StringCopy(Output, LastIndex, "\n");
-    LastIndex = StringCopy(Output, LastIndex, "enum instruction_type : u32\n");
+    LastIndex = StringCopy(Output, LastIndex, "enum instruction_operation_type : u32\n");
     LastIndex = StringCopy(Output, LastIndex, "{\n");
-    LastIndex = StringCopy(Output, LastIndex, "    InstructionType_None = 0,\n");
+    LastIndex = StringCopy(Output, LastIndex, "    InstructionOperationType_None = 0,\n");
     
-    for (u32 Index = 0; Index < InstructionTypeNames.Count; ++Index)
+    for (u32 Index = 0; Index < InstructionOperationTypeNames.Count; ++Index)
     {
-        LastIndex = StringCopy(Output, LastIndex, "    InstructionType_");
-        string InstructionName = InstructionTypeNames.Strings[Index];
-        LastIndex = StringCopy(Output, LastIndex, InstructionName);
+        LastIndex = StringCopy(Output, LastIndex, "    InstructionOperationType_");
+        string InstructionOperationName = InstructionOperationTypeNames.Strings[Index];
+        LastIndex = StringCopy(Output, LastIndex, InstructionOperationName);
         LastIndex = StringCopy(Output, LastIndex, ",\n");
     }
     
-    LastIndex = StringCopy(Output, LastIndex, "    InstructionType_Count,\n");
+    LastIndex = StringCopy(Output, LastIndex, "    InstructionOperationType_Count,\n");
     LastIndex = StringCopy(Output, LastIndex, "};\n");
     LastIndex = StringCopy(Output, LastIndex, "\n");
     
-    LastIndex = StringCopy(Output, LastIndex, "char *InstructionTypeToName[] = {\n");
+    LastIndex = StringCopy(Output, LastIndex, "char *InstructionOperationTypeToName[] = {\n");
     LastIndex = StringCopy(Output, LastIndex, "    0,\n");
-    for (u32 Index = 0; Index < InstructionTypeNames.Count; ++Index)
+    for (u32 Index = 0; Index < InstructionOperationTypeNames.Count; ++Index)
     {
-        string InstructionName = InstructionTypeNames.Strings[Index];
-        LastIndex = StringCopy(Output, LastIndex, "\"");
+        string InstructionName = InstructionOperationTypeNames.Strings[Index];
+        LastIndex = StringCopy(Output, LastIndex, "    \"");
         LastIndex = StringCopy(Output, LastIndex, InstructionName);
         LastIndex = StringCopy(Output, LastIndex, "\",\n");
     }
@@ -205,8 +215,8 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowC
     for (InstructionIndex = 0; InstructionIndex < InstructionCount; ++InstructionIndex)
     {
         LastIndex = StringCopy(Output, LastIndex, "    {\n");
-        LastIndex = StringCopy(Output, LastIndex, "        InstructionType_");
-        LastIndex = StringCopy(Output, LastIndex, InstructionTypeNames.Strings[InstructionIndexToType[InstructionIndex]]);
+        LastIndex = StringCopy(Output, LastIndex, "        InstructionOperationType_");
+        LastIndex = StringCopy(Output, LastIndex, InstructionOperationTypeNames.Strings[InstructionIndexToType[InstructionIndex]]);
         LastIndex = StringCopy(Output, LastIndex, ",\n");
         LastIndex = StringCopy(Output, LastIndex, "        {\n");
         for (u32 BitFieldIndex = 0; BitFieldIndex < BIT_FIELD_COUNT; ++BitFieldIndex)

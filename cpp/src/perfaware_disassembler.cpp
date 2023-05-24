@@ -41,7 +41,7 @@ u32 GetNextBytes(buffer MachineCode, u32 ByteOffset, b32 Word)
 instruction ValidateInstructionAndFillValues(instruction_encoding InstructionEncoding, u32 CurrentMachineCodeIndex, buffer MachineCode)
 {
     instruction Result = {};
-    Result.Type = InstructionEncoding.Type;
+    Result.OperationType = InstructionEncoding.OperationType;
     Result.Mod = 4;
     u32 UsedBits = 0;
     u32 Displacement = 0;
@@ -51,43 +51,53 @@ instruction ValidateInstructionAndFillValues(instruction_encoding InstructionEnc
          ++InstructionBitFieldIndex)
     {
         instruction_bit_field InstructionBitField = InstructionEncoding.Fields[InstructionBitFieldIndex];
-        if (InstructionBitField.Type > InstructionBitFieldType_None)
+        if (InstructionBitField.Type == InstructionBitFieldType_None)
         {
-            u8 BitFieldValue = GetBitFieldValue(InstructionBitField, CurrentMachineCodeIndex + Displacement, MachineCode);
-            UsedBits += InstructionBitField.Size;
-            if (InstructionBitField.Type == InstructionBitFieldType_Bits)
+            break;
+        }
+        
+        u8 BitFieldValue = GetBitFieldValue(InstructionBitField, CurrentMachineCodeIndex + Displacement, MachineCode);
+        UsedBits += InstructionBitField.Size;
+        
+        switch (InstructionBitField.Type)
+        {
+            case InstructionBitFieldType_Bits:
             {
                 if (BitFieldValue != InstructionBitField.Value)
                 {
-                    return {InstructionType_None};
+                    return {InstructionOperationType_None};
                 }
-            }
-            /*else
-            {
-                InstructionBitField.Value = BitFieldValue;
-            }*/
-            else if (InstructionBitField.Type == InstructionBitFieldType_Direction)
+            } break;
+            case InstructionBitFieldType_Direction:
             {
                 Result.Direction = BitFieldValue;
-            }
-            else if (InstructionBitField.Type == InstructionBitFieldType_Word)
+            } break;
+            case InstructionBitFieldType_SignExtension:
+            {
+                Result.SignExtension = BitFieldValue;
+            } break;
+            case InstructionBitFieldType_Word:
             {
                 Result.Word = BitFieldValue;
-            }
-            else if (InstructionBitField.Type == InstructionBitFieldType_Reg)
+            } break;
+            case InstructionBitFieldType_Reg:
             {
                 instruction_operand Operand = {};
                 Operand.Type = OperandType_Register;
                 Operand.Value = BitFieldValue;
                 Result.Operands[Result.OperandCount++] = Operand;
-            }
-            else if (InstructionBitField.Type == InstructionBitFieldType_Mod)
+            } break;
+            case InstructionBitFieldType_SR:
+            {
+                // TODO(alex):
+            } break;
+            case InstructionBitFieldType_Mod:
             {
                 Result.Mod = BitFieldValue;
-            }
-            // NOTE(alex): R/M is always followed by a displacement
-            else if (InstructionBitField.Type == InstructionBitFieldType_RM)
+            } break;
+            case InstructionBitFieldType_RM:
             {
+                // NOTE(alex): R/M is always followed by a displacement
                 Assert(Result.Mod < 4);
                 
                 Result.RM = BitFieldValue;
@@ -140,15 +150,15 @@ instruction ValidateInstructionAndFillValues(instruction_encoding InstructionEnc
                     Operand.Value = BitFieldValue;
                     Result.Operands[Result.OperandCount++] = Operand;
                 }
-            }
-            else if (InstructionBitField.Type == InstructionBitFieldType_Data)
+            } break;
+            case InstructionBitFieldType_Data:
             {
                 instruction_operand Operand = {};
                 Operand.Type = OperandType_Immediate;
                 Operand.Value = BitFieldValue;
                 Result.Operands[Result.OperandCount++] = Operand;
-            }
-            else if (InstructionBitField.Type == InstructionBitFieldType_DataW)
+            } break;
+            case InstructionBitFieldType_DataW:
             {
                 if (Result.Word)
                 {
@@ -162,15 +172,38 @@ instruction ValidateInstructionAndFillValues(instruction_encoding InstructionEnc
                     // TODO(alex): make this better
                     UsedBits -= 8;
                 }
-            }
-            else if (InstructionBitField.Type == InstructionBitFieldType_AddrLo)
+            } break;
+            case InstructionBitFieldType_DataSW:
+            {
+                if (!Result.SignExtension && Result.Word)
+                {
+                    // NOTE(alex): the last operand is assumed to be the one we are interested in
+                    instruction_operand Operand = Result.Operands[Result.OperandCount - 1];
+                    Operand.Value |= BitFieldValue << 8;
+                    Result.Operands[Result.OperandCount - 1] = Operand;
+                }
+                else
+                {
+                    // TODO(alex): make this better
+                    UsedBits -= 8;
+                    
+                    // TODO(alex): move this in the data parsing?
+                    if (Result.SignExtension && Result.Word)
+                    {
+                        instruction_operand Operand = Result.Operands[Result.OperandCount - 1];
+                        Operand.Value = (s16)Operand.Value;
+                        Result.Operands[Result.OperandCount - 1] = Operand;
+                    }
+                }
+            } break;
+            case InstructionBitFieldType_AddrLo:
             {
                 instruction_operand Operand = {};
                 Operand.Type = OperandType_Immediate;
                 Operand.Value = BitFieldValue;
                 Result.Operands[Result.OperandCount++] = Operand;
-            }
-            else if (InstructionBitField.Type == InstructionBitFieldType_AddrHi)
+            } break;
+            case InstructionBitFieldType_AddrHi:
             {
                 if (Result.Word)
                 {
@@ -184,11 +217,8 @@ instruction ValidateInstructionAndFillValues(instruction_encoding InstructionEnc
                     // TODO(alex): make this better
                     UsedBits -= 8;
                 }
-            }
-            else
-            {
-                InvalidCodePath;
-            }
+            } break;
+            default: InvalidCodePath;
         }
     }
     
@@ -205,7 +235,7 @@ instruction DecodeInstruction(u32 CurrentMachineCodeIndex, buffer MachineCode)
     {
         instruction_encoding InstructionEncoding = InstructionEncodingList[InstructionEncodingIndex];
         instruction Instruction = ValidateInstructionAndFillValues(InstructionEncoding, CurrentMachineCodeIndex, MachineCode);
-        if (Instruction.Type > InstructionType_None)
+        if (Instruction.OperationType > InstructionOperationType_None)
         {
             return Instruction;
         }
@@ -219,20 +249,20 @@ u32 WriteInstructionOperand(string Output, u32 Offset, instruction Instruction, 
 {
     instruction_operand Operand = Instruction.Operands[OperandIndex];
     
+    if (UseExplicitType)
+    {
+        if (Instruction.Word)
+        {
+            Offset = StringCopy(Output, Offset, "word ");
+        }
+        else
+        {
+            Offset = StringCopy(Output, Offset, "byte ");
+        }
+    }
+    
     if (Operand.Type == OperandType_Immediate)
     {
-        if (UseExplicitType)
-        {
-            if (Instruction.Word)
-            {
-                Offset = StringCopy(Output, Offset, "word ");
-            }
-            else
-            {
-                Offset = StringCopy(Output, Offset, "byte ");
-            }
-        }
-        
         s32 Value;
         if (Instruction.Word)
         {
@@ -318,14 +348,16 @@ u32 WriteInstructionOperand(string Output, u32 Offset, instruction Instruction, 
 
 u32 WriteInstruction(string Output, u32 Offset, instruction Instruction)
 {
-    Offset = StringCopy(Output, Offset, InstructionTypeToName[Instruction.Type]);
+    Offset = StringCopy(Output, Offset, InstructionOperationTypeToName[Instruction.OperationType]);
     
     if (Instruction.OperandCount > 0)
     {
         // NOTE(alex): Reg is considered to always be the first operand
+        b32 UseExplicitType = Instruction.OperandCount == 2 && Instruction.Operands[0].Type == OperandType_EffectiveAddressCalculation && Instruction.Operands[1].Type == OperandType_Immediate;
+        
         u32 OperandIndex = Instruction.Direction ? 0 : 1;
         Offset = StringCopy(Output, Offset, " ");
-        Offset = WriteInstructionOperand(Output, Offset, Instruction, OperandIndex, false);
+        Offset = WriteInstructionOperand(Output, Offset, Instruction, OperandIndex, UseExplicitType);
     }
     if (Instruction.OperandCount > 1)
     {

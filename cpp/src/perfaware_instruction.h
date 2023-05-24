@@ -1,13 +1,14 @@
 #ifndef PERFAWARE_INSTRUCTION_H
 #define PERFAWARE_INSTRUCTION_H
 
-enum instruction_type : u32;
+enum instruction_operation_type : u32;
 
 enum instruction_bit_field_type : u32
 {
     InstructionBitFieldType_None = 0,
     InstructionBitFieldType_Bits,
     InstructionBitFieldType_Direction,
+    InstructionBitFieldType_SignExtension,
     InstructionBitFieldType_Word,
     InstructionBitFieldType_Mod,
     InstructionBitFieldType_Reg,
@@ -15,6 +16,7 @@ enum instruction_bit_field_type : u32
     InstructionBitFieldType_SR,
     InstructionBitFieldType_Data,
     InstructionBitFieldType_DataW,
+    InstructionBitFieldType_DataSW,
     InstructionBitFieldType_AddrLo,
     InstructionBitFieldType_AddrHi,
     InstructionBitFieldType_Displacement,
@@ -25,6 +27,7 @@ char *InstructionBitFieldTypeStrings[] =
     "InstructionBitFieldType_None",
     "InstructionBitFieldType_Bits",
     "InstructionBitFieldType_Direction",
+    "InstructionBitFieldType_SignExtension",
     "InstructionBitFieldType_Word",
     "InstructionBitFieldType_Mod",
     "InstructionBitFieldType_Reg",
@@ -32,6 +35,7 @@ char *InstructionBitFieldTypeStrings[] =
     "InstructionBitFieldType_SR",
     "InstructionBitFieldType_Data",
     "InstructionBitFieldType_DataW",
+    "InstructionBitFieldType_DataSW",
     "InstructionBitFieldType_AddrLo",
     "InstructionBitFieldType_AddrHi",
     "InstructionBitFieldType_Displacement",
@@ -49,7 +53,7 @@ struct instruction_bit_field
 
 struct instruction_encoding
 {
-    instruction_type Type;
+    instruction_operation_type OperationType;
     instruction_bit_field Fields[BIT_FIELD_COUNT];
 };
 
@@ -93,8 +97,9 @@ struct instruction_operand
 
 struct instruction
 {
-    instruction_type Type;
+    instruction_operation_type OperationType;
     b32 Direction;
+    b32 SignExtension;
     b32 Word;
     u32 Mod;
     u32 RM;
